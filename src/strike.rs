@@ -35,6 +35,9 @@ pub enum Phase {
 #[derive(Debug)]
 pub struct Strike {
     plan: Plan,
+    /// The level's id (`minecraft:overworld`), as the host named it. Kept as a
+    /// string because that is what both the block edit and the level lookup take.
+    pub dimension: String,
     /// The beam's request, kept so the strike can be described and resumed.
     pub spec: BeamSpec,
     phase: Phase,
@@ -52,6 +55,7 @@ impl Strike {
     /// range, or a request larger than `MAX_BLOCKS_PER_STRIKE`. Out-of-range
     /// input is refused rather than quietly clamped (decision D5).
     pub fn new(
+        dimension: &str,
         center_x: f64,
         center_z: f64,
         radius: f64,
@@ -72,6 +76,7 @@ impl Strike {
 
         Ok(Self {
             plan,
+            dimension: dimension.to_owned(),
             spec,
             phase: Phase::Descending,
             ticks_to_impact: DESCENT_TICKS,
@@ -130,7 +135,7 @@ mod tests {
 
     #[test]
     fn a_strike_waits_for_the_descent_then_carves() {
-        let mut s = Strike::new(0.0, 0.0, 3.0, 60, 64).expect("valid beam");
+        let mut s = Strike::new("minecraft:overworld", 0.0, 0.0, 3.0, 60, 64).expect("valid beam");
 
         // Nothing is written during the descent.
         for _ in 0..DESCENT_TICKS - 1 {
@@ -154,7 +159,7 @@ mod tests {
 
     #[test]
     fn the_whole_beam_is_delivered_exactly_once() {
-        let mut s = Strike::new(0.0, 0.0, 2.0, 60, 63).expect("valid beam");
+        let mut s = Strike::new("minecraft:overworld", 0.0, 0.0, 2.0, 60, 63).expect("valid beam");
         let total = s.total();
         assert!(total > 0);
 
@@ -183,7 +188,7 @@ mod tests {
     #[test]
     fn never_exceeds_the_per_tick_budget() {
         // A tall, wide beam needs far more than one tick's budget.
-        let mut s = Strike::new(0.0, 0.0, 16.0, -64, 320).expect("valid beam");
+        let mut s = Strike::new("minecraft:overworld", 0.0, 0.0, 16.0, -64, 320).expect("valid beam");
         assert!(s.total() > u64::from(MAX_BLOCKS_PER_TICK));
 
         for _ in 0..40 {
@@ -200,7 +205,7 @@ mod tests {
     #[test]
     fn an_absurd_radius_is_refused_not_clamped() {
         // Above the core's hard cap: the caller is told no, and no plan exists.
-        let err = Strike::new(0.0, 0.0, 10_000.0, 0, 10).expect_err("must refuse");
+        let err = Strike::new("minecraft:overworld", 0.0, 0.0, 10_000.0, 0, 10).expect_err("must refuse");
         assert!(
             err.contains("radius"),
             "reason should name the radius: {err}"
@@ -209,12 +214,12 @@ mod tests {
 
     #[test]
     fn a_non_finite_centre_is_refused() {
-        assert!(Strike::new(f64::NAN, 0.0, 4.0, 0, 10).is_err());
-        assert!(Strike::new(0.0, f64::INFINITY, 4.0, 0, 10).is_err());
+        assert!(Strike::new("minecraft:overworld", f64::NAN, 0.0, 4.0, 0, 10).is_err());
+        assert!(Strike::new("minecraft:overworld", 0.0, f64::INFINITY, 4.0, 0, 10).is_err());
     }
 
     #[test]
     fn an_inverted_height_range_is_refused() {
-        assert!(Strike::new(0.0, 0.0, 4.0, 100, 50).is_err());
+        assert!(Strike::new("minecraft:overworld", 0.0, 0.0, 4.0, 100, 50).is_err());
     }
 }

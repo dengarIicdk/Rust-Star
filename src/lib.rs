@@ -13,12 +13,35 @@ pub mod core;
 pub mod strike;
 
 use std::sync::Mutex;
-
 use mod_api::{
     BlockEdit, BlockRun, Command, CommandArgumentValue, Flow, Hooks, HostSide, Identifier, Item,
-    ItemsEvent, LogicalSide, RegisterCommandsEvent, RegistrationContext, RightClickItemEvent,
+    DimensionKey, ItemsEvent, LevelDimension, LogicalSide, RegisterCommandsEvent, RegistrationContext, RightClickItemEvent,
     RunModCommandEvent, ServerHost, ServerTickEvent,
 };
+
+/// The id of a vanilla level, or `None` for a data-pack or mod dimension.
+///
+/// A command hands its level over as a key; only the three vanilla keys are
+/// named here, and a custom one is refused rather than silently redirected to
+/// the overworld, which would carve the wrong level.
+fn level_name_of_key(key: DimensionKey) -> Option<&'static str> {
+    match key {
+        DimensionKey::OVERWORLD => Some("minecraft:overworld"),
+        DimensionKey::NETHER => Some("minecraft:the_nether"),
+        DimensionKey::END => Some("minecraft:the_end"),
+        _ => None,
+    }
+}
+
+/// The same, for the click hook, which hands over the dimension itself.
+fn level_name(dimension: LevelDimension) -> Option<&'static str> {
+    match dimension {
+        LevelDimension::Overworld => Some("minecraft:overworld"),
+        LevelDimension::Nether => Some("minecraft:the_nether"),
+        LevelDimension::End => Some("minecraft:the_end"),
+        LevelDimension::Custom(_) => None,
+    }
+}
 
 /// The item whose right-click calls a strike down.
 pub const STRIKE_ITEM: &str = "starflight:orbital_rocket";
@@ -29,10 +52,11 @@ const STRIKE_RADIUS: f64 = 16.0;
 const CARVE_ABOVE: i32 = 24;
 /// Blocks carved below the target.
 const CARVE_BELOW: i32 = 16;
-/// The dimension the strike carves in.
-const DIMENSION: &str = "minecraft:overworld";
 /// The block every carve writes.
 const CARVE_BLOCK: &str = "minecraft:air";
+/// `LevelEvent` id for a firework-style burst. Borrowed so the impact reads as
+/// an explosion without the mod shipping its own particles.
+const IMPACT_EVENT: i32 = 2002;
 
 /// The content this mod declares, kept separate from the hook so it can be
 /// checked without a `RegistrationContext` (which only the game can build).
@@ -103,7 +127,12 @@ impl Hooks for Starflight {
 
         let [x, y, z] = event.command.position;
         // Round down so the column is centred on the block under the command.
+        let Some(dimension) = level_name_of_key(event.command.dimension) else {
+            eprintln!("starflight: a strike is only supported in the vanilla levels");
+            return Flow::Continue;
+        };
         let queued = strike::Strike::new(
+            &dimension,
             x.floor() + 0.5,
             z.floor() + 0.5,
             radius,
@@ -147,7 +176,14 @@ impl Hooks for Starflight {
         }
 
         let [x, y, z] = event.click.pos;
+        let player = event.click.player;
+        let hand = event.click.hand;
+        let Some(dimension) = level_name(event.click.dimension) else {
+            eprintln!("starflight: a strike is only supported in the vanilla levels");
+            return Flow::Continue;
+        };
         let queued = strike::Strike::new(
+            &dimension,
             f64::from(x) + 0.5,
             f64::from(z) + 0.5,
             STRIKE_RADIUS,
@@ -160,6 +196,11 @@ impl Hooks for Starflight {
                 if let Ok(mut active) = self.active.lock() {
                     active.push(s);
                 }
+                // The rocket is not consumed: this SDK exposes no public write
+                // to a player's inventory (ItemPlace is crate-private, and no
+                // generated host method sets a player slot). Written up in
+                // README "Known gaps" rather than faked.
+                let _ = (player, hand);
                 Flow::Cancel
             }
             Err(reason) => {
@@ -213,10 +254,22 @@ impl Hooks for Starflight {
                     .collect(),
             };
 
-            if let Err(reason) = host.edit_blocks(DIMENSION, &edit) {
+            if let Err(reason) = host.edit_blocks(&s.dimension, &edit) {
                 // The edit is all-or-nothing, so a refusal leaves the world
                 // untouched; abandon the strike instead of retrying forever.
                 eprintln!("starflight: block edit refused: {reason}");
+                finished.push(index);
+                continue;
+            }
+
+            // The final batch is the impact: mark it and drop the strike.
+            if s.phase() == strike::Phase::Done {
+                if let Some(level) = host.level(&s.dimension) {
+                    let y = positions.first().map_or(64, |p| p.y);
+                    let x = positions.first().map_or(0, |p| p.x);
+                    let z = positions.first().map_or(0, |p| p.z);
+                    let _ = level.global_level_event(host, IMPACT_EVENT, [x, y, z], 0);
+                }
                 finished.push(index);
             }
         }
@@ -252,7 +305,9 @@ mod tests {
     fn a_command_strike_carves_a_real_volume() {
         // The same path `/starflight strike` takes, minus the game types: a
         // strike is built, then drained the way the tick loop drains it.
-        let mut s = strike::Strike::new(0.5, 0.5, STRIKE_RADIUS, 60, 100).expect("valid");
+        let mut s =
+            strike::Strike::new("minecraft:overworld", 0.5, 0.5, STRIKE_RADIUS, 60, 100)
+                .expect("valid");
         let total = s.total();
         assert!(total > 0, "a strike must produce positions");
 

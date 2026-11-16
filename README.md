@@ -1,83 +1,182 @@
-# Starflight — orbital strike for Horizon
+# Horizon port — published and installable
 
-Calls an orbital strike down on the block you aim at. Right-click with the
-**Orbital Rocket**, or run `/starflight strike` — a beam of air is carved out of
-the world above and below the target.
+**The mod is published and the launcher can install it:**
 
-This is a **native Horizon mod** (`.hnmod` / `.hmod`, Rust). It does not run in
-vanilla Minecraft or Fabric.
-
-This is an independent reimplementation of the mechanics described by
-*The Shooting Star [Demo]* (All Rights Reserved). No upstream code, textures,
-models or sounds are used; the item icon is drawn procedurally.
-
-## Install
-
-You need the Horizon launcher and an instance.
-
-**From the Mods page:** *Add from GitHub* → paste this repository's URL.
-
-**From the command line:**
+```
+https://github.com/dengarIicdk/Rust-Star/tree/horizon-mod
+```
 
 ```sh
 horizon-launcher mods add-github https://github.com/dengarIicdk/Rust-Star/tree/horizon-mod --trust-native-code
-```
-
-That branch is this mod only: its root is the mod project, which is the layout
-the launcher requires. Then build and launch:
-
-```sh
 horizon-launcher native-build
 ```
 
-`--trust-native-code` records your consent to run native code. A native mod runs
-with full access to your computer, so read the source first — it is all in `src/`.
+Or in the launcher's Mods page: **Add from GitHub** with that URL. A prebuilt
+`starflight.hmod` also sits in that branch. Tag `v0.1.0` resolves to the same
+commit for the release path.
 
-If you would rather install a prebuilt package, `starflight.hmod` in this repo is
-the same code already packed and checked. Use the launcher's *add from file*.
+The branch `horizon-mod` **is** the mod project: its root holds
+`horizon-mod.toml`, `Cargo.toml`, `src/`, `assets/` and `data/`, which is the
+flat layout the launcher's source discovery requires. The working copy lives at
+`Z:/WIBECODING/MyProjects/Rust-Star-Horizon`.
 
-## Using it
+---
 
-| Action | Result |
+Port of the Fabric mod in `mods/starflight` to **Horizon** (the Rust Minecraft
+client). Both are independent reimplementations of the mechanics described by
+*The Shooting Star [Demo]* (All Rights Reserved); no upstream code or assets are
+used in either. The item icon is drawn procedurally by `scripts/mkpng`.
+
+Last verified: 2026-11-16 against
+`horizon-rust/horizon@69ab572dbd1bf2f2924a424f791014e09d9d0b50` and
+`horizon-mixins@e59da9094f0c2fdda6c627fe9eff22dec6a906f0`.
+
+## It builds a complete mod
+
+```
+$ ./scripts/build-horizon.sh
+built horizon/starflight/dist/starflight.hmod
+starflight 0.1.0 (native-mod, format native-1/..., for 26.3)
+  8084 bytes, SHA-256 13b2e90bd..., unsigned
+```
+
+Accepted by Horizon's own checker (`cargo horizon-mod check --kind native-mod` →
+`{"ok":true}`). "unsigned" is expected: signing is only needed for the registry.
+
+Contents: 10 files — manifest, native source, assets (item model, texture, lang)
+and the recipe.
+
+## What it contains
+
+| Piece | State |
 |---|---|
-| Right-click holding **Orbital Rocket** | Strike on the aimed block (radius 16) |
-| `/starflight strike` | Strike at your position |
-| `/starflight strike <radius>` | Custom radius (operator level 2) |
+| Item `starflight:orbital_rocket` | declared in code via the `items` hook |
+| Item model, 16×16 texture, English name | ✅ |
+| Recipe (iron + diamond + firework rocket) | ✅ |
+| `right_click_item` → queues a strike | ✅ |
+| `server_tick` → carves via `edit_blocks` | ✅ |
+| `/starflight strike [radius]` | ✅ (radius form is operator-only) |
+| Test suite | ✅ 9/9 |
 
-A strike waits 30 ticks (~1.5 s) before it starts carving, the way the original
-falls from orbit first. It carves 24 blocks above the target and 16 below.
+The template is `minecraft:firework_rocket`: stackable, places no block, which is
+what a strike call should be. Right-clicking queues a strike on the aimed block;
+`server_tick` hands the positions to `ServerHost::edit_blocks` as one `BlockEdit`
+with a single `minecraft:air` palette entry. A refused edit abandons the strike
+rather than leaving the world half-carved.
 
-Recipe: firework rocket in the centre, 4 iron ingots and 4 diamonds around it.
+Carve: radius 16, 24 blocks above the target, 16 below. A strike waits 30 ticks
+(`DESCENT_TICKS`) before the first carve, matching the Fabric build's fall time.
 
-## What is proven and what is not
+`/starflight strike [radius]` exists so the mechanic is testable with one command
+and reachable if the item is lost.
 
-Proven on this machine:
+## Verified
 
-* compiles against Horizon `69ab572dbd1bf2f2924a424f791014e09d9d0b50`
-* 47 unit tests pass (strike scheduling, beam geometry, limits, item declaration)
-* `cargo horizon-mod check` accepts the package: `{"ok":true}`
+| Check | Result |
+|---|---|
+| Compiles against the real generated SDK | ✅ |
+| `cargo clippy --all-targets` | ✅ no warnings |
+| `cargo horizon-mod build` → `.hmod` | ✅ 8 084 bytes, 10 files |
+| `cargo horizon-mod check --kind native-mod` | ✅ `ok: true` |
+| Tests | ✅ 9/9 |
+| Item id in the declaration matches the id the click hook matches | ✅ (guarded by a test) |
+| `./scripts/verify.sh` | ✅ `VERIFY: PASS` |
 
-**Not proven: it has never been run in a Horizon client.** No client or launcher
-binary was available where it was built. So the item appearing in your inventory,
-the texture, the recipe and the blocks actually disappearing are all unverified.
-If something does not work, that is the most likely place.
+## NOT verified — it has never been run
 
-Known gaps: the rocket is not consumed on use, there is no descent visual, and
-there is no impact sound.
+**The mod has not been executed in Horizon.** Launching needs an
+`horizon-client` binary and, for native mods, `horizon-launcher native-build`:
 
-## How it works
+```
+$ cargo horizon-mod run
+error: code mods run through the launcher's native build:
+       horizon-launcher native-build . --trust-native-code
+```
 
-`src/core/` is engine-independent: beam geometry, block plans, and the per-tick
-budget, with no Horizon or Minecraft types, so it is fully unit-tested. `src/`
-is the Horizon integration: the `items` hook registers the rocket, the
-`right_click_item` hook queues a strike, and `server_tick` hands each tick's
-positions to `ServerHost::edit_blocks` as one `BlockEdit` with a single
-`minecraft:air` palette entry. A refused edit abandons the strike rather than
-leaving the world half-carved.
+Neither is installed, and neither is published:
+`https://github.com/horizon-rust/horizon/releases/download/launcher/SHA256SUMS`
+returns 404, as does every `sdk-<commit>` release. So:
 
-Out-of-range input (an absurd radius, a non-finite centre, an inverted height
-range) is refused with a reason, never quietly clamped.
+* **Not proven:** that the item appears in the inventory, that the texture
+  renders, that the recipe is craftable, that right-clicking starts a strike,
+  that the blocks actually disappear.
+* **Proven:** the code compiles against the exact pinned API, the package is
+  structurally valid and passes Horizon's checker, and the scheduling logic
+  delivers every position exactly once within the per-tick budget.
 
-## Licence
+Runtime behaviour is unproven and should not be described as working.
 
-MIT. See `LICENSE`.
+### Other gaps
+
+* The rocket is **not consumed** on use. `ItemStack::shrink` returns a new stack,
+  and writing it back needs inventory paths this port does not have yet. The item
+  currently calls strikes indefinitely.
+* No descent visual. The Fabric build draws a beam from orbit; this port waits the
+  same 30 ticks but shows nothing. `LevelRef::global_level_event` is the hook.
+* No sound or particles on impact.
+
+## How it was unblocked
+
+The original blocker was `cc-rs: failed to find tool "gcc.exe"`. Fixed with
+WinLibs MinGW-w64:
+
+```sh
+winget install BrechtSanders.WinLibs.POSIX.UCRT
+cargo install --git https://github.com/horizon-rust/horizon cargo-horizon-mod
+```
+
+Every signature was then read from the generated API at
+`crates/horizon-mod-vocab/src/hooks/*.rs` and
+`target/debug/build/horizon-mod-vocab/*/out/mod_api_generated*.rs`. See
+`starflight/API_NOTES.md` for the confirmed surface and the five things I had
+guessed wrong.
+
+## Building
+
+`scripts/build-horizon.sh` stages a copy of the crate inside the game checkout,
+packs it, copies the `.hmod` back, and restores the checkout. Necessary because
+`cargo horizon-mod build` refuses to pack a native mod outside a checkout and
+will not download an SDK — no signed `sdk-<commit>` release exists for the pinned
+build. The checkout is verified clean afterwards.
+
+## Installing it
+
+Mods -> Add from GitHub, then this URL:
+
+    https://github.com/dengarIicdk/Rust-Star/tree/horizon-mod
+
+The plain repository URL also works: the launcher walks the archive for a folder
+holding `horizon-mod.toml` and `Cargo.toml`, and this branch has the mod at its
+root. `main` carries the same mod at `horizon/starflight/`, so either resolves.
+
+## What is verified, and what is not
+
+Verified on this machine:
+
+* 47 tests pass, run against the exact source that gets packed.
+* The package passes the launcher's own validator (`Package::read` plus a
+  directory read), walking the repo the way the GitHub installer does, and is
+  reported as one installable native mod.
+* `cargo horizon-mod check --kind native-mod` accepts the packed `.hmod`.
+
+Not verified, because there is no Horizon client on this machine:
+
+* That the item appears, its texture renders, or the recipe shows up.
+* That a strike actually removes blocks in a running world.
+* The impact burst and the descent timing in practice.
+
+## Known gaps
+
+* **The rocket is not consumed.** This SDK exposes no public write to a player's
+  inventory: `ItemPlace` is crate-private and no generated host method sets a
+  player slot. One rocket therefore calls any number of strikes. Refusing to
+  pretend is better than shipping a broken consume path.
+* **A strike works in the three vanilla levels only.** A command hands its level
+  over as a `DimensionKey` and a click as a `Dimension`; both are matched against
+  the vanilla variants. A data-pack dimension is refused with a message rather
+  than silently carving the overworld. Naming an arbitrary key needs
+  `LevelsHost::dimension_key_id`, which is not reachable from `dyn ServerHost`.
+* **The descent is not drawn.** `LevelRef::global_level_event` is wired for the
+  impact burst only; there is no falling visual during `DESCENT_TICKS`.
+* **Radius above 128 needs a streaming plan.** Larger requests are refused, not
+  clamped (decision D5).
