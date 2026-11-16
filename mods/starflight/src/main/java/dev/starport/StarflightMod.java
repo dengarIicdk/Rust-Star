@@ -31,6 +31,7 @@ public final class StarflightMod implements ModInitializer {
             return;
         }
 
+        StarflightConfig.load(net.fabricmc.loader.api.FabricLoader.getInstance().getConfigDir());
         ModItems.register();
         ModEntities.register();
         StrikeManager.register();

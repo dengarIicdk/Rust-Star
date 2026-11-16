@@ -226,6 +226,24 @@ public final class Commands {
                         + " perPlayer=" + independentPlayers + " forget=" + forgetWorks), false);
                 return ok ? 1 : 0;
             }))
+            .then(CommandManager.literal("config").executes(ctx -> {
+                ServerCommandSource src = ctx.getSource();
+                StrikeTuning t = StarflightConfig.tuning();
+                boolean valid = t.isValid();
+                boolean sane = t.radius() >= 1.0 && t.radius() <= 64.0
+                    && t.damage() >= 0.0 && t.speed() > 0.0 && t.lifetimeTicks() > 0
+                    && StarflightConfig.maxActiveStrikes() >= 1
+                    && StarflightConfig.maxActiveStrikes() <= StarflightConfig.ABSOLUTE_MAX_ACTIVE;
+                boolean ok = valid && sane;
+                src.sendFeedback(() -> Text.literal(
+                    "STARFLIGHT-CONFIG: " + (ok ? "PASS" : "FAIL")
+                        + " radius=" + t.radius() + " damage=" + t.damage()
+                        + " speed=" + t.speed() + " lifetime=" + t.lifetimeTicks()
+                        + " worldEdit=" + StarflightConfig.allowWorldEdit()
+                        + " maxActive=" + StarflightConfig.maxActiveStrikes()
+                        + " nativeValid=" + valid), false);
+                return ok ? 1 : 0;
+            }))
             .then(CommandManager.literal("cancel").executes(ctx -> {
                 StrikeManager.cancelAll();
                 ctx.getSource().sendFeedback(() -> Text.literal("All strikes cancelled"), false);

@@ -53,7 +53,7 @@ public final class RocketItem extends Item {
             return TypedActionResult.fail(stack);
         }
 
-        StrikeTuning tuning = StrikeTuning.DEFAULT;
+        StrikeTuning tuning = StarflightConfig.tuning();
         if (!tuning.isValid()) {
             player.sendMessage(Text.translatable("starflight.error.invalid_tuning"), true);
             return TypedActionResult.fail(stack);

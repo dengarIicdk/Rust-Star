@@ -48,7 +48,7 @@ public final class StrikeScopeItem extends Item {
             return TypedActionResult.fail(stack);
         }
         BlockPos target = ((BlockHitResult) hit).getBlockPos();
-        StrikeTuning t = StrikeTuning.DEFAULT;
+        StrikeTuning t = StarflightConfig.tuning();
         long count = NativeBridge.beamBlockCount(
             target.getX() + 0.5, target.getZ() + 0.5, t.radius(),
             sw.getBottomY(), sw.getTopY() - 1);

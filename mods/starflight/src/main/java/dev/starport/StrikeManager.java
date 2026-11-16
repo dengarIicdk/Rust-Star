@@ -81,6 +81,18 @@ public final class StrikeManager {
         if (!Ops.isReady()) {
             return null;
         }
+        // Refuse to grow the queue without bound: each strike holds a plan in the
+        // native registry and consumes a share of every tick.
+        if (ACTIVE.size() >= StarflightConfig.maxActiveStrikes()) {
+            StarflightMod.LOGGER.warn(
+                "Rejected strike: already {} active (max {})",
+                ACTIVE.size(), StarflightConfig.maxActiveStrikes());
+            return null;
+        }
+        if (!StarflightConfig.allowWorldEdit()) {
+            StarflightMod.LOGGER.warn("Rejected strike: world editing disabled by config");
+            return null;
+        }
         int slot = nextSlot++;
         long total = NativeBridge.buildPlan(x, z, radius, yMin, yMax, slot);
         if (total <= 0) {
