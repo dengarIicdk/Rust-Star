@@ -1,40 +1,63 @@
 # TASKS
 
 Statuses: `TODO` · `IN_PROGRESS` · `DONE` · `BLOCKED`.
-A task is `DONE` only when its acceptance criterion is met and recorded.
+`DONE` requires the acceptance criterion to be met and recorded.
 
-## Stage 2 (bridge) — all DONE
+## Stage 2 — bridge
 
 | # | Task | Status | Acceptance | Evidence |
 |---|---|---|---|---|
-| T1 | Install Rust toolchain locally | DONE | `cargo --version` works | `rustc 1.100.0` |
-| T2 | Install JDK 21 locally | DONE | `javac --version` works | Temurin 21.0.13 |
-| T3 | Write `starflight` core | DONE | unit tests green | 36 passed |
-| T4 | Write `starflight-jni` cdylib | DONE | unit + cargo build | 7 passed, `.dll` built |
-| T5 | Java `NativeBridge` + `SelfTest` | DONE | SelfTest all-pass with real `.dll` | 30/30, exit 0 |
-| T6 | Benchmark boundary | DONE | numbers recorded | `bench.log` |
-| T7 | `scripts/verify.sh` | DONE | exits 0 | ran, `VERIFY: PASS` |
-| T8 | Docs (sources, licence, plan, decisions… ) | DONE | files present, no contradictions | see `docs/` |
+| T1 | Rust toolchain locally | DONE | `cargo --version` | 1.100.0 |
+| T2 | JDK 21 locally | DONE | `javac --version` | 21.0.13 |
+| T3 | `starflight` core | DONE | tests green | 38 passed |
+| T4 | `starflight-jni` cdylib | DONE | build + tests | `.dll` produced |
+| T5 | `NativeBridge` + `SelfTest` | DONE | all-pass with real `.dll` | 30/30 |
+| T6 | Boundary benchmark | DONE | numbers recorded | 46 vs 91 ns |
+| T7 | `scripts/verify.sh` | DONE | exits 0 | VERIFY: PASS |
 
-## Stage 3 (one end-to-end scenario)
+## Stage 3 — end-to-end
 
-| # | Task | Status | Acceptance |
-|---|---|---|---|
-| T9 | Fabric dev environment that compiles | BLOCKED | no Minecraft toolchain available; need a JDK+Fabric+Gradle download or user-provided setup |
-| T10 | Item obtain → launch → fly → impact | BLOCKED | in-game observation |
-| T11 | Server-authoritative impact application | BLOCKED | depends on T10 |
+| # | Task | Status | Acceptance | Evidence |
+|---|---|---|---|---|
+| T8 | Fabric dev environment compiles | DONE | `gradle build` | JAR built |
+| T9 | Items/entities registered | DONE | registry contains IDs | REGISTRY PASS |
+| T10 | Rocket entity spawns and flies | DONE | spawns with sane velocity | FLIGHT PASS |
+| T11 | Strike mutates blocks | DONE | block solid→air | VERIFY PASS |
 
-## Stages 4–7
+## Stage 5 — custom rocket
 
-| # | Task | Status | Acceptance |
-|---|---|---|---|
-| T12 | Remaining upstream features | BLOCKED | depends on T10 |
-| T13 | Custom rocket (item, model, texture) | BLOCKED | depends on T10; textures need design |
-| T14 | Persistence of rocket state | TODO | survives world reload (Stage 6) |
-| T15 | Multiplayer authority, rate limits | TODO | server rejects spoofed strikes |
-| T16 | Packaging + install guide | TODO | installable `.jar` |
+| # | Task | Status | Acceptance | Evidence |
+|---|---|---|---|---|
+| T12 | Own item ID | DONE | `starflight:orbital_rocket` | REGISTRY PASS |
+| T13 | Own textures/model | DONE | files exist, 0 missing-texture errors | client log |
+| T14 | Obtainable in survival | DONE | crafting recipe present | recipe JSON |
+| T15 | Tunable speed/lifetime/damage | DONE | config validated by core | CONFIG PASS |
+| T16 | Trail / sound / impact VFX | TODO | audible+visible effect | — |
+| T17 | Historical-themed optional skin | BLOCKED | needs the user's reference | — |
 
-## Everywhere
+## Stage 6 — persistence / multiplayer
 
-- [ ] Keep `HANDOFF.md` current before ending a session.
-- [ ] Record any new texture/sound origin in `LICENSE_AUDIT.md`.
+| # | Task | Status | Acceptance | Evidence |
+|---|---|---|---|---|
+| T18 | Strike survives restart | DONE | NBT round-trip + resume | PERSISTENCE PASS |
+| T19 | Corrupt save rejected | DONE | invalid entry dropped | `rejectsCorrupt=true` |
+| T20 | Server-side rate limit | DONE | 4th request in window blocked | RATELIMIT PASS |
+| T21 | Active-strike cap | DONE | queue refuses above cap | CONFIG PASS |
+| T22 | World-edit kill switch | DONE | config disables strikes | CONFIG PASS |
+| T23 | Two real clients play together | TODO | manual multiplayer test | — |
+
+## Stage 7 — packaging
+
+| # | Task | Status | Acceptance | Evidence |
+|---|---|---|---|---|
+| T24 | Installable JAR with natives | DONE | jar contains `natives/win-x64` | `jar tf` |
+| T25 | Install instructions | DONE | documented | README / RESULTS |
+| T26 | Client launches with mod | DONE | 0 missing textures | runClient log |
+| T27 | Human gameplay check | TODO | a person plays it | — |
+
+## Recommended next
+
+1. **T27** — a person launches a world, crafts the rocket, fires it, watches the
+   strike. This is the only thing automation cannot cover.
+2. **T16** — add particles and a sound so the impact reads clearly.
+3. **T23** — two-client multiplayer pass.

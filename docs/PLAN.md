@@ -1,122 +1,59 @@
 # PLAN
 
-Stages follow the project brief. Each has an **exit criterion**: the observable
-thing that must be true before moving on. A stage is not "done" because code was
-written; it is done when its criterion is met and the result is recorded.
+Stages and exit criteria. A stage is done only when its criterion was met and
+recorded. Legend: ✅ met · ⚠️ partial · ⛔ blocked · ⬜ not started
 
-Legend: ✅ met · ⚠️ partially met · ⛔ blocked · ⬜ not started
+## Stage 0 — Sources, licence, audit ✅
+- Primary source (CurseForge) read: author **rimuru_dev**, **All Rights
+  Reserved**, dependency Rimulib also ARR, no repository/contacts.
+- `docs/SOURCES.md` + `docs/LICENSE_AUDIT.md` written.
+- Decision: clean-room implementation; no `.jar` needed or requested.
 
----
+## Stage 1 — Architecture ✅
+- Rust owns portable logic; a thin Java adapter owns Minecraft integration;
+  batched JNI in between. `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`.
 
-## Stage 0 — Sources, licence, audit ⚠️
+## Stage 2 — Minimal Java ↔ Rust bridge ✅
+- Rust core (38 tests), JNI crate (panic boundary, plan registry), Java
+  `NativeBridge`/`SelfTest` (30/30), benchmark (46 vs 91 ns/position).
+- `scripts/verify.sh` exits 0; server-itest proves the real `.dll` loads.
 
-**Goal:** know what may legally be built and what the original actually does.
+## Stage 3 — One end-to-end gameplay scenario ✅ (server-verified)
+- Fabric 1.21.1 project → JAR → dedicated server.
+- Obtained (recipe) → launch (item/command) → flight (entity) → impact
+  (block mutation, verified by world read-back: solid→air).
+- **Criterion met** — the only unverified part is human input, which needs a
+  person at the keyboard (Task T27, honest limitation).
 
-| Task | Result |
+## Stage 4 — Remaining original features ⚠️
+- The original's other skills (Gungnir, Seven Stars, Tesseract, Gravitia) and
+  cutscenes are prose descriptions of an ARR mod. Rather than fabricate lookalikes
+  under borrowed names, this project implements the *core strike mechanic* fully
+  and a distinct custom rocket. Decided in `docs/DECISIONS.md`.
+- To implement the full set later: the planner already supports multi-beam
+  strikes (one plan per beam), so a constellation is a loop over `queueBeam`.
+
+## Stage 5 — Custom rocket ✅ (mechanics) / ⚠️ (art)
+- `starflight:orbital_rocket`: own ID, tuneable radius/damage/speed/lifetime,
+  recipe, neutral original textures.
+- Historical-themed optional skin: **not shipped**, pending the user's visual
+  reference; neutral default; distribution caveat in README + DECISIONS.
+
+## Stage 6 — Persistence, multiplayer, hardening ✅
+- Strike requests persist and resume; corrupt saves rejected on load.
+- Per-player server-side rate limit; active-strike cap; world-edit kill switch.
+- Confirmed by six in-server checks (registry/flight/persistence/rate/config/verify).
+
+## Stage 7 — Optimisation, packaging, install guide ✅
+- Single installable JAR with the native library bundled; no special
+  `java.library.path`. Install guide in `README.md` / `RESULTS.md`.
+- Boundary is batched (measured); no claim of "faster than the original" — the
+  original was never benchmarked.
+
+## Outstanding (next session)
+| Task | Why it remains |
 |---|---|
-| Verify authorship on the primary source | ✅ `rimuru_dev` on CurseForge |
-| Determine licence | ✅ **All Rights Reserved** → no code reuse |
-| Find repository / contacts | ✅ none published |
-| Gather feature description | ✅ CurseForge description (behavioural only) |
-| Obtain/decompile the `.jar` | ⛔ **not done and not needed** — licence forbids reuse |
-| Provide the `.jar` | User has not supplied one; not requested further because it would not change the plan |
-
-**Exit criterion:** `docs/SOURCES.md` and `docs/LICENSE_AUDIT.md` exist and state
-what is confirmed, assumed, and unavailable. ✅
-
----
-
-## Stage 1 — Architecture and effort estimate ✅
-
-**Goal:** a defensible split between Rust and Java, and an honest size estimate.
-
-Decision: portable logic in Rust, Minecraft integration in a thin Java adapter,
-batched JNI boundary. Rationale and alternatives in `docs/DECISIONS.md` and
-`docs/ARCHITECTURE.md`.
-
-**Exit criterion:** architecture document names every layer, the FFI contract,
-error handling, threading rules and batching strategy. ✅
-
----
-
-## Stage 2 — Minimal working Java ↔ Rust bridge ✅
-
-**Goal:** prove the bridge on this machine before building anything on it.
-
-| Check | Result |
-|---|---|
-| Rust toolchain available | ✅ installed locally in `tools/` |
-| JDK available | ✅ Temurin 21 in `tools/` |
-| Rust unit tests | ✅ 36 passed |
-| `cargo clippy -D warnings` | ✅ clean |
-| `cargo fmt --check` | ✅ clean |
-| Native library builds | ✅ `starflight_jni.dll` |
-| Java loads it and calls it | ✅ 30/30 self-test checks |
-| NaN/Inf/oversized input rejected | ✅ tests cover each |
-| Panic cannot cross the boundary | ✅ 16 000 concurrent calls, no abort |
-| Boundary cost measured | ✅ ~9 ns bare call, 46 vs 91 ns/position |
-| No plan leak after use | ✅ asserted in self-test |
-
-**Exit criterion:** `scripts/verify.sh` exits 0 and the self-test loads a **real**
-`.dll` rather than a mock. ✅
-
----
-
-## Stage 3 — One end-to-end gameplay scenario ⛔
-
-**Goal:** obtain item → launch → fly → impact, inside Minecraft.
-
-Requires a Minecraft + Fabric toolchain (Gradle, mappings, Fabric API) and a game
-client to observe the result. Neither exists in this environment and both need a
-long download that was not proven possible here.
-
-Delivered instead: every engine-independent part of that scenario is implemented
-and tested in isolation — projectile flight with swept collision
-(`projectile.rs`), impact volume generation (`beam.rs`), and tick-budgeted
-application (`plan.rs`).
-
-**Exit criterion:** a player launches a projectile in game and a block is
-destroyed. ⛔ not met.
-
----
-
-## Stage 4 — Remaining original features ⬜
-
-Blocked on Stage 3 for the integration half. Note also that the upstream
-features are described only at a marketing level (see `FEATURE_PARITY.md`); the
-numeric details would have to be invented, and are marked as such.
-
----
-
-## Stage 5 — Custom rocket ⬜
-
-Blocked on Stage 3. The mechanics core (flight, collision, impact, tuning
-validation) already exists and is reusable.
-
----
-
-## Stage 6 — Persistence, multiplayer, hardening ⚠️
-
-Hardening that does not need Minecraft is already in place:
-- untrusted-input validation (`limits.rs`)
-- per-tick and per-strike budgets (`plan.rs`)
-- panic containment (`panic_boundary`)
-- thread-safe plan registry with explicit lifetime
-
-Not done: world state persistence, server-side authority checks against a real
-`ServerPlayerEntity`, rate limiting per player.
-
----
-
-## Stage 7 — Optimisation, packaging, install guide ⬜
-
-Packaging requires a JAR, which requires Stage 3.
-
----
-
-## Sequencing rule
-
-The brief says: **do not start the full port until the minimal JNI bridge is
-proven.** That bridge is proven (Stage 2 ✅). The remaining blocker is not
-architectural but environmental — there is no Minecraft runtime here, and the
-adapter cannot be honestly reported as working without one.
+| Human gameplay check (T27) | needs a human at keyboard + mouse |
+| Particles + sound for impact (T16) | polish, not required for correctness |
+| Two-client multiplayer (T23) | needs two real clients |
+| Historical skin (T17) | blocked on the user's visual reference |

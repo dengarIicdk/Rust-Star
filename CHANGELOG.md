@@ -2,6 +2,53 @@
 
 All notable changes. Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.0] — 2026-11-16
+
+### Added — Fabric adapter (`mods/starflight`)
+
+- Fabric 1.21.1 project producing `starflight-0.1.0.jar` (Loom 1.11.8,
+  Loader 0.20.1, API 0.116.18, Yarn 1.21.1+build.3, Java 21).
+- `starflight:orbital_rocket` — custom rocket: right-click launches a
+  server-side projectile that carves a vertical cylinder on impact.
+- `starflight:strike_scope` — selects a beam target.
+- Crafting recipes for both items (survival obtainable).
+- `BlockApplier` — drains the Rust plan in ≤16 384-position batches per tick.
+- `StrikeManager` — queue, budget accounting, tracing under
+  `-Dstarflight.debug=true`.
+- Client: entity renderer, item models, original neutral textures, mod icon.
+- Native library bundled at `natives/win-x64/` and extracted at runtime, so no
+  `java.library.path` setup is needed.
+
+### Added — persistence & multiplayer
+
+- `Persistence` — resumable strike *requests* survive a restart; geometry is
+  re-validated on load and corrupt/unknown-format entries are dropped.
+- `StrikeManager.resumePending` re-queues unfinished strikes on
+  `SERVER_STARTED`.
+- `RateLimiter` — 3 launches / 30 s per player, enforced server-side (the item
+  cooldown is client-visible and bypassable).
+
+### Added — configuration
+
+- `config/starflight.properties`: radius, damage, speed, lifetimeTicks,
+  allowWorldEdit, maxActiveStrikes.
+- Every value is validated by the Rust core; an invalid combination falls back
+  to defaults with a warning. `maxActiveStrikes` is additionally clamped to
+  `[1, 8]` in code.
+- `allowWorldEdit=false` rejects strikes before a plan is built.
+
+### Verified on this machine
+
+- Dedicated server: REGISTRY, FLIGHT, PERSISTENCE, RATELIMIT, CONFIG, VERIFY
+  all PASS (`artifacts/logs/itest-evidence.txt`).
+- Client: launches with the mod, native core loaded, 0 missing textures.
+- Rust: 38 tests; JNI self-test 30/30.
+
+### Known gaps
+
+- No human gameplay check yet (see `docs/KNOWN_ISSUES.md` #1).
+- No impact particles/sound; Windows x64 only; rocket art is simple.
+
 ## [0.1.0] — 2026-11-16
 
 ### Added — Rust core (`starflight`)

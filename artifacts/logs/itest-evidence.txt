@@ -1,7 +1,14 @@
 Native core 0.1.0 (ABI 1)
 STARFLIGHT-REGISTRY: PASS rocketItem=true scopeItem=true rocketEntity=true
 STARFLIGHT-FLIGHT: PASS spawned=true speed=2.500 id=1
+strike slot=1000 applied=16384/75648 examined=16384 complete=false
+strike slot=1000 applied=32768/75648 examined=16384 complete=false
+strike slot=1000 applied=49152/75648 examined=16384 complete=false
+strike slot=1000 applied=65536/75648 examined=16384 complete=false
+strike slot=1000 applied=75648/75648 examined=10112 complete=true
 STARFLIGHT-PERSISTENCE: PASS wrote=true read=true matches=true rejectsCorrupt=true
 STARFLIGHT-RATELIMIT: PASS burst3=true blocked4=true blockedNearEnd=true resetAfterWindow=true perPlayer=true forget=true
+STARFLIGHT-CONFIG: PASS radius=8.0 damage=60.0 speed=2.5 lifetime=400 worldEdit=true maxActive=4 nativeValid=true
 STARFLIGHT-SELFTEST: QUEUED slot=1001 total=232 probe=8, 64, 0 solidBefore=true
+strike slot=1001 applied=232/232 examined=232 complete=true
 STARFLIGHT-VERIFY: PASS probe=8, 64, 0 wasSolid=true airNow=true strikes=0

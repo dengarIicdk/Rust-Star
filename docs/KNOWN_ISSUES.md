@@ -1,82 +1,74 @@
 # KNOWN ISSUES
 
-Ordered by severity. Nothing here is hidden behind a "TODO" that pretends to be
-finished functionality.
+Ordered by severity. Nothing hidden behind a "TODO" that pretends to be done.
 
-## 1. No Minecraft adapter exists — **blocker for the gameplay goal**
+## 1. No human gameplay check — the honest limit of automation
 
-**Symptom.** There is no `fabric.mod.json`, no item, no entity, no JAR.
-**Why.** Building a Fabric mod requires Gradle to download Minecraft, its mappings
-and the Fabric API. That toolchain was not obtained or proven in this
-environment, so adapter code would be uncompiled and unverifiable.
-**Impact.** The project cannot yet be loaded into Minecraft at all.
-**Workaround.** None. Stage 3 must be done where a Fabric toolchain is available.
-**Tracked as.** `TASKS.md` T9/T10.
+**Symptom.** Everything important is verified server-side, but nobody has fired a
+rocket by hand in a real client and watched the impact.
+**Why.** That demands a human at the keyboard; it cannot be automated. The
+client launches and loads assets cleanly, and a server-verifiable block mutation
+passes, but "it feels good to play" is unverified.
+**Impact.** Possible undiscovered feel/latency/UX issues.
+**Tracked as.** T27.
 
-## 2. No in-game verification of any kind
+## 2. Historical-themed skin not implemented
 
-**Symptom.** Nothing reported here was observed inside Minecraft.
-**Why.** Same as #1.
-**Consequence.** The phrase "works" in this repo always means "passes its
-automated tests", never "works in game".
+**Symptom.** Only the neutral default textures exist.
+**Why.** The brief requires a concrete visual reference before drawing; the user
+has not given one, and such imagery is legally restricted in several
+jurisdictions and on most platforms.
+**Remedy.** When the user supplies a reference, add a *separate* opt-in texture
+pack. Repository ships neutral only.
 
-## 3. The original mod cannot be matched exactly
+## 3. No impact VFX or sound yet
 
-**Symptom.** Numeric parity (200-block radius, 1500 slider, 400-block crater) is
-not attempted.
-**Why.** All Rights Reserved + description-only source. Those figures are prose.
-**Impact.** This is a reimplementation, not a drop-in replacement; numbers are
-our own and configurable.
+**Symptom.** The strike works (blocks are removed) but is silent and has no
+particles.
+**Why.** Polish was prioritised below correctness. Requires original audio (ARR
+forbids copying the original's).
+**Impact.** Aesthetic only.
 
-## 4. Hard radius cap below the advertised slider
+## 4. Only Windows x64 built and tested
 
-**Symptom.** `HARD_MAX_RADIUS = 64`, while the upstream UI offers up to 1500.
-**Why.** Deliberate: a 1500-block-radius vertical cylinder is ~1e9 blocks and
-would be a trivial server-killer. See `DECISIONS.md` D5.
-**Impact.** Requests above 64 are **rejected**, not clamped.
-**Remedy.** Raise the constant deliberately if a server owner accepts the cost.
+**Symptom.** Only `starflight_jni.dll` is produced.
+**Why.** The available machine is Windows. The Rust core is portable; untested
+elsewhere.
+**Remedy.** `cargo build --release` on the target OS; the loader already looks
+for `linux-x64` / `mac-arm64` subdirectories.
 
-## 5. `MAX_BLOCKS_PER_STRIKE = 2 000 000` may be too low for very tall worlds
+## 5. Hard radius cap is below the upstream slider
 
-**Symptom.** A radius-64 beam over a full 384-block world is ~3.9 M blocks and is
-therefore rejected by the planner.
-**Why.** Chosen as a memory/DoS ceiling.
-**Remedy.** Constant in `limits.rs`; raising it also raises worst-case memory
-(128 bytes per position ≈ 500 MB at 4 M).
+**Symptom.** `HARD_MAX_RADIUS = 64` while the upstream UI advertised up to 1500.
+**Why.** Deliberate (D5): a 1500-radius cylinder is ~1e9 blocks, an instant
+server-killer. Requests above 64 are rejected, not clamped.
+**Remedy.** Raise the constant deliberately; `MAX_BLOCKS_PER_STRIKE = 2e6` also
+caps the worst case (~500 MB for a single plan).
 
-## 6. Only Windows x64 was built and tested
+## 6. Benchmark numbers are machine-specific
 
-**Symptom.** Only `starflight_jni.dll` exists.
-**Why.** The available machine is Windows. The Rust core is portable and tests
-would pass elsewhere, but that is untested here.
-**Remedy.** `cargo build --release` on the target OS; the `NativeBridge` loader
-already looks for `linux-x64`/`mac-arm64`/etc. subdirectories.
+**Symptom.** 46 vs 91 ns/position from one machine.
+**Why.** Single-CPU JIT/clock variation.
+**Impact.** Use the ratio, not the absolutes; this does not predict in-game
+block-edit speed (Minecraft's own pipeline dominates).
 
-## 7. Benchmark numbers are machine-specific
+## 7. Rocket art is simple
 
-**Symptom.** 46 vs 91 ns/position comes from one machine/JVM.
-**Why.** Single-run timing; CPU frequency scaling and JIT state vary.
-**Impact.** Use the ratio, not the absolutes; the design choice does not hinge on
-a factor of 2, and none of this predicts in-game block-edit speed.
+**Symptom.** The rocket renders as a basic silhouette/billboard, not a detailed
+model.
+**Why.** Original art takes time and the visual check needs the human pass of
+#1. Presented as a placeholder, not as finished art.
+**Remedy.** After #1 confirms handling, commission/replace the model and
+textures. Keep them original (licence).
 
-## 8. No assets (textures, models, sounds)
+## 8. No non-ASCII strings cross JNI yet
 
-**Symptom.** `assets/` does not exist.
-**Why.** ARR forbids taking upstream assets; writing real ones was out of scope
-for the core stage, and shipping placeholders as final art is forbidden by the
-brief.
-**Impact.** Even with an adapter, the mod would be untextured.
+**Symptom.** `env.new_string` is used only for the version string.
+**Why.** No user-facing non-ASCII text crosses the boundary.
+**Remedy.** Revisit when item names/localisation do.
 
-## 9. Probe `Vec<char>` encoding for non-ASCII
+## 9. Git identity is project-local
 
-**Symptom.** `env.new_string` is only used for the version string.
-**Why.** No user-facing non-ASCII strings cross JNI yet.
-**Remedy.** Revisit when item names/localisation cross the boundary.
-
-## 10. Git identity is project-local
-
-**Symptom.** Commits use a local `user.name`/`user.email` because none was
-configured.
-**Why.** The brief forbids changing global settings.
-**Impact.** Commits exist locally with a generic identity; rewrite when the real
-identity is known.
+**Symptom.** Commits use a local `user.name`/`user.email`.
+**Why.** Global config must not be touched. Commits exist locally with a generic
+identity; rewrite when the real identity is known.
