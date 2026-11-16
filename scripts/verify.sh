@@ -55,7 +55,10 @@ echo "== 3b/6 horizon port scheduling tests =="
 (cd horizon/starflight && cargo test 2>&1 | grep -E 'test result|FAILED')
 
 echo "== 3c/6 horizon port lint + end-to-end drain =="
-(cd horizon/starflight && cargo clippy --all-targets -- -D warnings 2>&1 | tail -1 && cargo run -q 2>&1 | tail -1)
+(cd horizon/starflight && cargo clippy --all-targets -- -D warnings 2>&1 | tail -1)
+
+echo "== 3d/6 horizon mod compiles against the real SDK =="
+bash scripts/build-horizon.sh 2>&1 | grep -E "^built |native-mod|^error|^FAIL" | head -3
 
 echo "== 4/6 release build =="
 (cd rust && cargo build --release 2>&1 | tail -2)

@@ -3,14 +3,9 @@ name = "mod-starflight"
 version = "0.1.0"
 edition = "2021"
 
-# The game-independent core: flight maths, beam geometry, block plans and the
-# per-tick budget. It has no Minecraft or Horizon dependency, so it is reused
-# from the Fabric build unchanged.
 [dependencies]
 starflight = { path = "../../rust/starflight" }
+horizon-mod-api = { path = "../../tools/cargo/git/checkouts/horizon-5a198cb72f4fbd36/69ab572/crates/horizon-mod-api" }
 
-# NOTE: the real mod depends on `horizon-mod-api` through the launcher-managed
-# SDK (`.horizon/sdk/api/crates/horizon-mod-api`). That path is created by
-# `cargo horizon-mod`, which cannot run here: installing it fails at
-# `cc-rs: failed to find tool "gcc.exe"`. Adding the dependency now would make
-# the crate unresolvable. See lib.rs for the verified API facts and the plan.
+[package.metadata.horizon]
+sdk = "69ab572dbd1bf2f2924a424f791014e09d9d0b50"

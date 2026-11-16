@@ -84,3 +84,44 @@ The generated `mod_api` surface (exact field names on `RightClickItemEvent`,
 without it would be guesswork that never compiles. `cargo horizon-mod` would
 resolve it, but installing that toolchain fails here:
 `cc-rs: failed to find tool "gcc.exe"`.
+
+---
+
+## Update 2026-11-16: the blocker is gone
+
+Installing MinGW-w64 (`winget install BrechtSanders.WinLibs.POSIX.UCRT`) fixed
+`cc-rs: failed to find tool "gcc.exe"`, so `cargo-horizon-mod` installs and the
+generated API is readable on disk. Everything below is now confirmed by reading
+`crates/horizon-mod-vocab/src/hooks/*.rs`,
+`crates/horizon-mod-vocab/src/host/*.rs` and
+`target/debug/build/horizon-mod-vocab/*/out/mod_api_generated{,_host}.rs`.
+
+### Signatures that were guesses before
+
+```rust
+fn right_click_item(&self, host: HostSide<'_>, event: &mut RightClickItemEvent<'_>) -> Flow;
+fn server_tick(&self, host: &mut dyn ServerHost, event: &mut ServerTickEvent<'_>);
+```
+
+* Hooks take **`&self`**, not `&mut self`, and the mod must be `Sync` — hence a
+  `Mutex` for the live strikes rather than plain state.
+* `HostSide` is **generic** (`HostSide<'_>`) with `Server`/`Client` variants,
+  not a plain enum name.
+* `RightClickItemEvent` fields: `click: &ItemClick`, `cancellation_result`,
+  `cancelled: bool`.
+* `ItemClick` fields: `side: LogicalSide`, `dimension`, `pos: [i32; 3]`,
+  `hand`, `stack: &ItemStack`, `player: u128`, `player_entity_id: i32`.
+* `ItemKey` is **opaque** (`pub struct ItemKey(pub(crate) u32)`) — it cannot be
+  compared to a string. Resolve with `host.item_key(&Identifier)`;
+  `Identifier::parse("ns:path")` (there is no `Identifier::new`).
+* `ServerHost` already includes `WorldEditServerHost`, so `host.edit_blocks`
+  is called directly, no downcast.
+* `BlockEdit { palette: Vec<BlockState>, filters: Vec<StatePredicate>, runs: Vec<BlockRun> }`;
+  `BlockRun { x, z, y, height, surface, block, only }` — note `x, z, y` order.
+* `block_state_id(&str) -> Option<BlockState>` resolves a block directly.
+
+### Capabilities
+
+`capabilities = ["registries"]` is the **only** accepted value; `"world-write"`
+is rejected as an unknown variant. World writes are gated by
+`#[access(WorldOnly)]` on the host method, not by a manifest capability.

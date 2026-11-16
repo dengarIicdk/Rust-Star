@@ -5,88 +5,88 @@ client). Both are independent reimplementations of the mechanics described by
 *The Shooting Star [Demo]* (All Rights Reserved); no upstream code or assets are
 used in either.
 
-Last checked: 2026-11-16 against `horizon-rust/horizon` `main`.
+Last verified: 2026-11-16 against `horizon-rust/horizon@69ab572dbd1bf2f2924a424f791014e09d9d0b50`.
 
-## Where it stands
+## It builds
 
-| Piece | State |
+```
+$ ./scripts/build-horizon.sh
+Building against the game checkout .../horizon-5a198cb72f4fbd36/69ab572
+Built .\target/horizon-mod\starflight.hmod
+built horizon/starflight/dist/starflight.hmod
+starflight 0.1.0 (native-mod, format native-1/69ab572.../e59da909..., for 26.3)
+  5515 bytes, SHA-256 f05c041a8..., unsigned
+```
+
+`dist/starflight.hmod` is a real Horizon native mod, accepted by Horizon's own
+package checker (`cargo horizon-mod check --kind native-mod`). "unsigned" is
+expected: signing is only needed to submit to the registry.
+
+## What it does
+
+* **`right_click_item`** — right-clicking while holding `starflight:orbital_rocket`
+  resolves the item id through `ServerHost::item_key`, compares the opaque
+  `ItemKey`, and queues a strike centred on the aimed block. Client side returns
+  early so a client's copy never acts on a world it does not own.
+* **`server_tick`** — advances each live strike one tick and hands the resulting
+  positions to `ServerHost::edit_blocks` as a single `BlockEdit` with one
+  `minecraft:air` palette entry. A refusal abandons the strike rather than
+  leaving the world half-carved.
+
+Carve: radius 16, 24 blocks above the target, 16 below.
+
+## Verified
+
+| Check | Result |
 |---|---|
-| Verified API facts the port depends on | ✅ researched and recorded below |
-| Game-independent core (`rust/starflight`) | ✅ reusable unchanged, 38 tests |
-| Strike scheduling over that core | ✅ **6 tests pass**, linted, end-to-end drain proven |
-| `horizon-mod.toml` manifest | ✅ written (needs the real capability list confirming) |
-| Hook implementations reaching the game | ⛔ **blocked** — see below |
+| Compiles against the real generated SDK | ✅ |
+| `cargo clippy` | ✅ no warnings |
+| `cargo horizon-mod build` → `.hmod` | ✅ 5 515 bytes |
+| `cargo horizon-mod check --kind native-mod` | ✅ accepted |
+| Scheduling tests (`src/strike.rs`) | ✅ 6/6 |
+| `./scripts/verify.sh` | ✅ `VERIFY: PASS` |
 
-## The blocker, precisely
+## Not verified
 
-Horizon builds native mods through `cargo-horizon-mod`, which the launcher runs
-against a pinned SDK. On this machine installing it fails:
+**It has not been run in Horizon.** Launching the game needs the Horizon client
+binary and a signed build; neither is reachable from here. The code is
+compile-checked and package-checked against the exact pinned revisions, which is
+the furthest automated verification goes. Runtime behaviour (does the block
+actually disappear, does the item exist in the registry) is unproven.
 
-```
-error occurred in cc-rs: failed to find tool "gcc.exe": program not found
-```
+The item `starflight:orbital_rocket` is also **not yet registered** — this port
+uses the hook path only. Registering it needs a content artifact (`assets/`,
+`data/`) alongside the native code, which is the next step.
 
-There is no C compiler here — the Rust target is `x86_64-pc-windows-gnu` and no
-`gcc`/`msvc` is present. The same limitation already forced a workaround for Ogg
-encoding (`docs/KNOWN_ISSUES.md`). Without the SDK, `horizon-mod-api` cannot be
-resolved, so any hook code written now would sit permanently unverified at the
-API boundary — and the exact field names of events like `RightClickItemEvent`
-are *generated* per Horizon build, not published as readable source.
+## How it was unblocked
 
-Writing that guesswork would mean presenting code that has never compiled as
-progress. This port does not do that.
-
-## Verified API facts (the research that makes the port tractable)
-
-* **Java mods cannot run in Horizon** — its docs state the mod would have to
-  patch Minecraft's Java classes, which Horizon does not have.
-* Hooks are methods of `mod_api::Hooks`, implemented in
-  `#[mod_api::horizon_mod] impl Hooks for YourMod`, each taking
-  `(&self, host, event)`. No hand-written Mixins.
-* A native mod is a crate depending on `horizon-mod-api` (lib `mod_api`) through
-  `.horizon/sdk/...`, never on the game directly.
-* **405 native hook points exist** — far more than the capability table in
-  `docs/mods.md` suggests. `block_use_item_on`, `use_item_hand`,
-  `right_click_item` and `client_tick_post` are all present.
-* **Bulk block edits exist** (`docs/modding/src/how-to/world/bulk-block-edits.md`):
-  `BlockEdit` with a `BlockState` palette and `StatePredicate` filters, prepared
-  all-or-nothing before any mutation, ≤65 536 filters, skipping unloaded chunks
-  and out-of-height positions. This is exactly what a strike needs — and it is
-  the part the Fabric build had to implement itself.
-* `BlockState::of(&host.block_states(), block, constraints)` builds a state;
-  `LevelRef::level_event` / `global_level_event` play the impact effects.
-
-## What transfers unchanged
-
-The core in `rust/starflight`: beam geometry, per-tick budget, flight,
-validation. `src/strike.rs` drives it and is fully tested here:
-
-```
-queued a radius-4 strike at (0, 0): 572 positions
-drained 572 positions over 30 ticks
-ok: every position delivered exactly once
-```
-
-Tests: descent delay honoured, every position delivered exactly once, the
-per-tick budget never exceeded, absurd radius refused not clamped, non-finite
-centre refused, inverted height range refused.
-
-## Next step on a machine with a C toolchain
+The earlier blocker was `cc-rs: failed to find tool "gcc.exe"`. Fixed by
+installing WinLibs MinGW-w64 via `winget`. With a C compiler present,
+`cargo-horizon-mod` installs and the SDK becomes readable:
 
 ```sh
+winget install BrechtSanders.WinLibs.POSIX.UCRT
 cargo install --git https://github.com/horizon-rust/horizon cargo-horizon-mod
-cd horizon/starflight
-cargo horizon-mod new . --template native   # if starting fresh
-cargo horizon-mod run
 ```
 
-Then wire `strike::Strike` into the real hooks. The Fabric implementation in
-`mods/starflight/src/main/java/dev/starport/` is the behavioural reference for
-what each hook must do: right-click → mark the target column → descend → hand
-`BlockEdit` a budget's worth of positions per tick → play sound and particles.
+The generated API then lives at
+`crates/horizon-mod-vocab/src/hooks/*.rs` and
+`target/debug/build/horizon-mod-vocab/*/out/mod_api_generated.rs`. Every
+signature in `src/lib.rs` was read from there.
 
-## Manifest caveat
+## Why the build script stages a copy
 
-`horizon-mod.toml` lists `capabilities = ["registries", "world-write"]`. The
-exact capability name for world edits must be confirmed against the SDK before
-submission; the registry checks will reject an unknown one.
+`cargo horizon-mod build` refuses to pack a native mod outside a game checkout,
+and will not download an SDK — no signed `sdk-<commit>` release exists for the
+pinned build. `scripts/build-horizon.sh` copies the crate into the checkout,
+packs it, copies the `.hmod` back, and restores the checkout (verified clean
+afterwards).
+
+## Next steps
+
+1. Register `starflight:orbital_rocket` as a real item (content artifact: model,
+   texture, lang, recipe) so it can be held.
+2. Run it in a Horizon client and confirm the carve.
+3. Add the descent phase visually (`LevelRef::global_level_event`).
+4. When an official signed SDK ships, replace the staging build with
+   `cargo horizon-mod build` in place.
