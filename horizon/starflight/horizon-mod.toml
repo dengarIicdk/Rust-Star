@@ -1,0 +1,8 @@
+id = "starflight"
+name = "Starflight"
+version = "0.1.0"
+description = "Orbital strikes: mark a column, and a beam from the sky carves it out. Independent reimplementation of the mechanics described by The Shooting Star, written from scratch in Rust."
+authors = ["Starflight contributors"]
+api = "0.2"
+side = "both"
+capabilities = ["registries", "world-write"]

@@ -31,3 +31,5 @@ horizon/*/target/
 
 # sndconv build output (source is tracked so sounds are reproducible)
 tools/sndconv/target/
+horizon/*/target/
+horizon/*/.horizon/

@@ -1,15 +1,16 @@
-# Standalone crate used to compile and test the Horizon runtime outside the
-# game. Horizon's own build embeds `src/runtime.rs` into the patched client and
-# does not use this manifest; it exists so the logic is testable here, in CI, and
-# by any reviewer without building the whole game.
 [package]
-name = "starflight-horizon"
+name = "mod-starflight"
 version = "0.1.0"
 edition = "2021"
-publish = false
 
+# The game-independent core: flight maths, beam geometry, block plans and the
+# per-tick budget. It has no Minecraft or Horizon dependency, so it is reused
+# from the Fabric build unchanged.
 [dependencies]
 starflight = { path = "../../rust/starflight" }
 
-[lib]
-path = "src/lib.rs"
+# NOTE: the real mod depends on `horizon-mod-api` through the launcher-managed
+# SDK (`.horizon/sdk/api/crates/horizon-mod-api`). That path is created by
+# `cargo horizon-mod`, which cannot run here: installing it fails at
+# `cc-rs: failed to find tool "gcc.exe"`. Adding the dependency now would make
+# the crate unresolvable. See lib.rs for the verified API facts and the plan.

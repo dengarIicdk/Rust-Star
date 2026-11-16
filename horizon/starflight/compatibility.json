@@ -1,6 +1,0 @@
-{
-  "_comment": "Pins the Horizon revision this bundle was written against. `native.py package` refuses a bundle whose horizon_revision here and in horizon-mixin.toml differ. Both are placeholders until checked against a published Horizon commit.",
-  "horizon": "0000000000000000000000000000000000000000",
-  "hooks": 1,
-  "testing": "extracted the tick hook shape from horizon-rust/horizon-mods native/ mods; not yet built"
-}
