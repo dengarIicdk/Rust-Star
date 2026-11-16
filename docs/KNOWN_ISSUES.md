@@ -76,3 +76,20 @@ textures. Keep them original (licence).
 **Symptom.** Commits use a local `user.name`/`user.email`.
 **Why.** Global config must not be touched. Commits exist locally with a generic
 identity; rewrite when the real identity is known.
+
+## Horizon build (2026-07, this machine)
+
+* **The rocket is not consumed.** The SDK has no public write to a player's
+  inventory: `ItemPlace` is crate-private and no generated host method sets a
+  player slot. One rocket calls any number of strikes. Documented in
+  `horizon/README.md` rather than faked.
+* **Strikes only land in the three vanilla levels.** A command passes a
+  `DimensionKey`, a click passes a `Dimension`; both are matched against the
+  vanilla variants and a custom dimension is refused with a message.
+  `LevelsHost::dimension_key_id` would name any key but is not reachable from a
+  `dyn ServerHost`.
+* **No descent visual.** Only the impact burst (`LevelEvent 2002`) is wired.
+* **Never run in a client.** No `horizon-client` or `horizon-launcher` binary
+  exists on this machine, so item presence, texture, recipe and block removal
+  are unproven in a running game. The package itself is proven installable by
+  the launcher's own validator.

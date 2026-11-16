@@ -88,3 +88,30 @@ no unverified code (D8); historical skin opt-in + neutral default (D9).
 - The upstream `.jar` is never downloaded/run (ARR + trust boundary).
 - Never report a check as passing without running it. "Verified in game" has
   never meant "a person played it".
+
+## Latest state: Horizon mod published and installable
+
+Install URL (works in the launcher's "Add from GitHub"):
+
+    https://github.com/dengarIicdk/Rust-Star/tree/horizon-mod
+
+The plain repo URL also works, because `main` carries the same mod at
+`horizon/starflight/` and the launcher walks a downloaded archive to depth 6
+looking for a folder with `horizon-mod.toml` and `Cargo.toml`.
+
+The install error that started this round ("holds no native mod") was caused by
+that `Cargo.toml` naming the SDK by an absolute path into a local game checkout
+and having a path dependency escaping the mod. Both are refused by the launcher.
+The core is now vendored at `src/core` and the SDK is named the launcher-owned
+way: `horizon-mod-api = { path = ".horizon/sdk/api/crates/horizon-mod-api" }`.
+
+Proof, reproducible:
+
+    bash scripts/verify.sh --quick     # VERIFY: PASS
+    bash scripts/build-horizon.sh      # 47 tests, then packs the .hmod
+
+`verify.sh` step 3b stages the published tree inside the game checkout and runs
+the tests before packing, so tests and the shipped bytes are the same code.
+Step 3c runs `pkgcheck`, a validator built against the launcher's own
+`horizon-mod-package` crate, walking a repo exactly as the GitHub installer does.
+It reports one installable native mod.

@@ -165,3 +165,43 @@ fn run_mod_command(&self, _host: &mut dyn ServerHost, event: &mut RunModCommandE
 `horizon-launcher native-build <path> --trust-native-code`. No launcher or client
 binary is published (the `launcher` and `sdk-*` release URLs 404), so the mod
 cannot be launched from this machine.
+
+## Second round of corrections (while making it actually compile and test)
+
+These were all found by compiling the hooks and running the tests, not by
+reading alone.
+
+1. **A command's level and a click's level have different types.**
+   `CommandInvocation::dimension` is a `DimensionKey` (opaque `u32` slot); a
+   click's `ItemClick::dimension` is a `LevelDimension`, i.e.
+   `horizon_core::dimension::Dimension`, an enum
+   (`Overworld | Nether | End | Custom(LevelKey)`). One helper per type.
+   `DimensionKey` has public `OVERWORLD`/`NETHER`/`END` constants and is
+   `PartialEq`, which is enough to name the three vanilla levels.
+
+2. **`LevelsHost::dimension_key_id` is not reachable from `dyn ServerHost`.**
+   It is declared in `host/levels.rs`, and `host::levels::LevelsHost` *is* a
+   supertrait of `Host`, but the method is not emitted into
+   `mod_api_generated_host.rs` and `mod_api::prelude` does not bring the trait
+   into scope for a `&mut dyn ServerHost`. `cargo build` resolves it
+   inconsistently with `cargo test`, so the code avoids it entirely.
+
+3. **`ItemPlace` is crate-private.** `crates/horizon-mod-vocab/src/block/mod.rs`
+   declares `pub(crate) mod item_place;`, and no generated host method sets a
+   player's slot. `PlayersServerHost` has no inventory write. So a native mod
+   cannot consume an item from a player's hand in this SDK. The rocket is
+   therefore not consumed; README says so.
+
+4. **`horizon-mod-package` is the launcher's validator.**
+   `Package::read(dir)` plus `directory_files(dir)` is what
+   `launcher/src/native_mods/package.rs::read` does. The GitHub installer walks
+   the archive to `DEPTH = 6`, skipping dotfiles, `target` and `node_modules`,
+   and requires a folder with both `horizon-mod.toml` and `Cargo.toml`. Rejecting
+   a folder that contains `native`, `rust`, `horizon-mixin.toml` or
+   `horizon-native.json` is a per-folder rule, not a rule about the repo path.
+
+5. **The error message in the launcher is misleading.** "holds no native mod (a
+   folder with horizon-mixin.toml, or an unpacked .hnmod)" mentions files that
+   are not the requirement; the real requirement is `horizon-mod.toml` +
+   `Cargo.toml`. The actual cause in our case was a `Cargo.toml` whose SDK
+   dependency was an absolute path into a local game checkout.
