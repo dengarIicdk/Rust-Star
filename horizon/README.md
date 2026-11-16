@@ -139,9 +139,44 @@ packs it, copies the `.hmod` back, and restores the checkout. Necessary because
 will not download an SDK — no signed `sdk-<commit>` release exists for the pinned
 build. The checkout is verified clean afterwards.
 
-## Next steps
+## Installing it
 
-1. Get an `horizon-client` + `horizon-launcher` and actually run it.
-2. Consume the rocket on use (needs inventory write paths).
-3. Descent visual via `LevelRef::global_level_event`.
-4. Impact sound and particles.
+Mods -> Add from GitHub, then this URL:
+
+    https://github.com/dengarIicdk/Rust-Star/tree/horizon-mod
+
+The plain repository URL also works: the launcher walks the archive for a folder
+holding `horizon-mod.toml` and `Cargo.toml`, and this branch has the mod at its
+root. `main` carries the same mod at `horizon/starflight/`, so either resolves.
+
+## What is verified, and what is not
+
+Verified on this machine:
+
+* 47 tests pass, run against the exact source that gets packed.
+* The package passes the launcher's own validator (`Package::read` plus a
+  directory read), walking the repo the way the GitHub installer does, and is
+  reported as one installable native mod.
+* `cargo horizon-mod check --kind native-mod` accepts the packed `.hmod`.
+
+Not verified, because there is no Horizon client on this machine:
+
+* That the item appears, its texture renders, or the recipe shows up.
+* That a strike actually removes blocks in a running world.
+* The impact burst and the descent timing in practice.
+
+## Known gaps
+
+* **The rocket is not consumed.** This SDK exposes no public write to a player's
+  inventory: `ItemPlace` is crate-private and no generated host method sets a
+  player slot. One rocket therefore calls any number of strikes. Refusing to
+  pretend is better than shipping a broken consume path.
+* **A strike works in the three vanilla levels only.** A command hands its level
+  over as a `DimensionKey` and a click as a `Dimension`; both are matched against
+  the vanilla variants. A data-pack dimension is refused with a message rather
+  than silently carving the overworld. Naming an arbitrary key needs
+  `LevelsHost::dimension_key_id`, which is not reachable from `dyn ServerHost`.
+* **The descent is not drawn.** `LevelRef::global_level_event` is wired for the
+  impact burst only; there is no falling visual during `DESCENT_TICKS`.
+* **Radius above 128 needs a streaming plan.** Larger requests are refused, not
+  clamped (decision D5).

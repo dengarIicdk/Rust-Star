@@ -27,8 +27,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "$STAGE/src"
-cp "$ROOT/horizon/starflight/src/lib.rs" "$ROOT/horizon/starflight/src/strike.rs" "$STAGE/src/"
+# Copy the whole published source tree (core is vendored at src/core), so the
+# staged copy that is tested and packed is byte-identical to what users get.
+mkdir -p "$STAGE"
+cp -r "$ROOT/horizon/starflight/src" "$STAGE/src"
 cp "$ROOT/horizon/starflight/horizon-mod.toml" "$STAGE/"
 # Content artifacts ship inside the package; without them the mod has no item.
 cp -r "$ROOT/horizon/starflight/assets" "$ROOT/horizon/starflight/data" "$STAGE/" 2>/dev/null || true
@@ -40,7 +42,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-starflight = { path = "$ROOT/rust/starflight" }
 horizon-mod-api = { path = "../../crates/horizon-mod-api" }
 
 [package.metadata.horizon]
@@ -58,6 +59,12 @@ open(p, 'w', encoding='utf-8').write(s)
 PY
 
 cd "$STAGE"
+# Tests run against the same staged source the .hmod is packed from, so a
+# passing build and a passing test always describe the same code.
+# `|| true` keeps a no-match grep from tripping `set -e` and skipping cleanup.
+TESTLOG=$(cargo test 2>&1) || true
+echo "$TESTLOG" | grep -E 'test result|FAILED|^error' | head -5 || true
+echo "$TESTLOG" | grep -q 'FAILED' && { echo "FAIL: staged tests failed"; exit 1; }
 cargo horizon-mod build
 
 mkdir -p "$ROOT/horizon/starflight/dist"
