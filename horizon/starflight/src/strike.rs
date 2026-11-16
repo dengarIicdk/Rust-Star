@@ -8,9 +8,9 @@
 //! The block positions come from `starflight::beam` / `starflight::plan`, which
 //! enforce `MAX_BLOCKS_PER_TICK` themselves. This module decides when to ask.
 
-use starflight::beam::{BeamBlocks, BeamSpec};
-use starflight::limits::MAX_BLOCKS_PER_TICK;
-use starflight::plan::{BlockPos, Plan};
+use crate::core::beam::{BeamBlocks, BeamSpec};
+use crate::core::limits::MAX_BLOCKS_PER_TICK;
+use crate::core::plan::{BlockPos, Plan};
 
 /// How far the beam falls before the ground is carved.
 ///
