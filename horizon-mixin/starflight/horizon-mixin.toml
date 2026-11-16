@@ -1,0 +1,67 @@
+# Starflight for Horizon — a native source-mixin bundle.
+#
+# Install: launcher -> Mods -> native mods -> this folder, then
+# Settings -> Game -> "Native mods (experimental)" -> Build.
+# Command line: horizon-launcher native-build <this folder> --trust-native-code
+#
+# No [compatibility] horizon_revision on purpose: a bundle without a pin builds
+# on the commit of the installed version the build starts from, so this works on
+# the release the player already has instead of only on one development commit.
+# Every hook below is a named hook (native-hooks.json) at version 1, which is the
+# contract Horizon keeps stable across versions.
+[mod]
+id = "starflight"
+version = "0.1.0"
+priority = 100
+
+# The engine: pure Rust, no game types, no dependencies. It is built as its own
+# workspace member, so editing this bundle's hooks does not rebuild it.
+[[crate]]
+id = "engine"
+path = "engine"
+dependent = "horizon-client"
+
+# The game-facing half. Injected as `crate::game::starflight`, so the helpers
+# below can call `crate::game::starflight::...`.
+[[module]]
+id = "runtime"
+file = "crates/horizon-client/src/game.rs"
+name = "starflight"
+source = "runtime.rs"
+
+# Right click with the strike item: claim the click and queue a strike.
+[[injection]]
+id = "use_item"
+hook = "use_item"
+hook_version = 1
+kind = "HEAD"
+helper = "use_item.rs"
+bindings = [
+  { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },
+  { name = "stack", ty = "&crate::game::ItemStack", value = "stack" },
+  { name = "claimed", ty = "&mut bool", value = "claimed" },
+]
+
+# One tick of the server: hand a bounded batch of blocks to the world.
+[[injection]]
+id = "server_tick"
+hook = "server_tick"
+hook_version = 1
+kind = "HEAD"
+helper = "server_tick.rs"
+bindings = [
+  { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },
+  { name = "phase", ty = "crate::game::ServerTickPhase", value = "phase" },
+]
+
+# /starflight strike [radius]
+[[injection]]
+id = "register_commands"
+hook = "register_commands"
+hook_version = 1
+kind = "HEAD"
+helper = "register_commands.rs"
+bindings = [
+  { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },
+  { name = "commands", ty = "&mut Vec<crate::game::NativeCommand>", value = "commands" },
+]

@@ -1,0 +1,10 @@
+[package]
+name = "starflight-engine"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Starflight's engine-independent strike geometry: no game types, no dependencies."
+
+# No dependencies at all: the crate must build from Horizon's own Cargo.lock
+# allow list, and a pure-Rust core needs nothing from it.
+[dependencies]
