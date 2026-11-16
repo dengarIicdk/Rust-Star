@@ -9,5 +9,7 @@
   "starflight.scope.report": "%s — this would erase %s blocks",
   "starflight.error.invalid_tuning": "Invalid strike configuration",
   "starflight.error.invalid_direction": "Launch direction is invalid",
-  "starflight.error.rate_limited": "Too many launches — %s left this minute"
+  "starflight.error.rate_limited": "Too many launches — %s left this minute",
+  "starflight.subtitle.launch": "Rocket launches",
+  "starflight.subtitle.impact": "Rocket impact"
 }

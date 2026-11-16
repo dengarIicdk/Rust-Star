@@ -28,3 +28,6 @@ artifacts/preview/
 
 # Horizon port standalone build
 horizon/*/target/
+
+# sndconv build output (source is tracked so sounds are reproducible)
+tools/sndconv/target/

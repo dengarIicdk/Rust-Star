@@ -7,9 +7,9 @@
     " R "
   ],
   "key": {
-    "I": "minecraft:iron_ingot",
-    "N": "minecraft:netherite_scrap",
-    "R": "minecraft:redstone_block"
+    "I": { "item": "minecraft:iron_ingot" },
+    "N": { "item": "minecraft:netherite_scrap" },
+    "R": { "item": "minecraft:redstone_block" }
   },
   "result": {
     "id": "starflight:orbital_rocket",

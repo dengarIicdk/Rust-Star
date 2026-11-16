@@ -12,6 +12,10 @@ import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.sound.SoundCategory;
+import net.minecraft.sound.SoundEvent;
+import net.minecraft.util.Identifier;
 import net.minecraft.world.RaycastContext;
 import net.minecraft.world.World;
 
@@ -71,6 +75,12 @@ public final class RocketEntity extends ProjectileEntity {
     public void tick() {
         super.tick();
         if (getWorld().isClient) {
+            // Smoke trail while flying. Client-side keeps it smooth and costs
+            // the server nothing.
+            getWorld().addParticle(net.minecraft.particle.ParticleTypes.FLAME,
+                getX(), getY(), getZ(), 0.0, 0.0, 0.0);
+            getWorld().addParticle(net.minecraft.particle.ParticleTypes.CAMPFIRE_COSY_SMOKE,
+                getX(), getY(), getZ(), 0.0, 0.01, 0.0);
             return;
         }
         age++;
@@ -118,6 +128,14 @@ public final class RocketEntity extends ProjectileEntity {
             ServerWorld serverWorld = (ServerWorld) getWorld();
             StrikeManager.queueBeam(serverWorld, getOwnerUuid(), x, z, tuning.radius(),
                 serverWorld.getBottomY(), serverWorld.getTopY() - 1);
+            // Impact sound, broadcast to everyone nearby.
+            serverWorld.playSound(null, BlockPos.ofFloored(x, y, z),
+                SoundEvent.of(Identifier.of(StarflightMod.MOD_ID, "impact")),
+                SoundCategory.BLOCKS, 2.0f, 1.0f);
+            // A short burst of particles so the impact reads visually even
+            // before the blocks are actually removed over the coming ticks.
+            serverWorld.spawnParticles(net.minecraft.particle.ParticleTypes.EXPLOSION_EMITTER,
+                x, y, z, 1, 0.0, 0.0, 0.0, 0.0);
         }
         discard();
     }

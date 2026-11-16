@@ -70,6 +70,12 @@ public final class RocketItem extends Item {
         }
         world.spawnEntity(rocket);
 
+        // Audible launch. Played server-side broadcast so every nearby player
+        // hears it, not just the one who fired.
+        world.playSound(null, player.getBlockPos(),
+            net.minecraft.sound.SoundEvent.of(net.minecraft.util.Identifier.of(StarflightMod.MOD_ID, "launch")),
+            net.minecraft.sound.SoundCategory.PLAYERS, 1.0f, 1.0f);
+
         player.getItemCooldownManager().set(this, COOLDOWN_TICKS);
         player.sendMessage(Text.translatable("starflight.launched", tuning.radius()), true);
         return TypedActionResult.success(stack);

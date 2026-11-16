@@ -1,0 +1,16 @@
+{
+  "launch": {
+    "category": "player",
+    "subtitle": "starflight.subtitle.launch",
+    "sounds": [
+      { "name": "starflight:launch", "stream": false }
+    ]
+  },
+  "impact": {
+    "category": "block",
+    "subtitle": "starflight.subtitle.impact",
+    "sounds": [
+      { "name": "starflight:impact", "stream": false }
+    ]
+  }
+}

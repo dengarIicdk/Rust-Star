@@ -6,6 +6,10 @@ import net.minecraft.client.render.entity.EntityRenderer;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.entity.EntityRendererFactory;
+import net.minecraft.client.render.OverlayTexture;
+import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.VertexConsumer;
+import net.minecraft.client.render.LightmapTextureManager;
 import net.minecraft.util.Identifier;
 
 /**
@@ -37,12 +41,44 @@ public final class StarflightClient implements ClientModInitializer {
         @Override
         public void render(RocketEntity entity, float yaw, float tickDelta,
                            MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light) {
-            // Placeholder silhouette: a small billboard so the projectile is
-            // visible at all. Real art is a separate task (KNOWN_ISSUES #8).
+            // Previously this pushed, translated and popped without drawing
+            // anything, then called super.render (a no-op for a plain
+            // EntityRenderer) — which is why the rocket was invisible in game.
+            // Now it draws a textured, camera-facing quad scaled up so the
+            // projectile reads clearly at range.
             matrices.push();
-            matrices.translate(0.0, 0.25, 0.0);
+            // Lift the quad so the rocket sits centred on the entity origin
+            // rather than half-sunk into the ground.
+            matrices.translate(0.0, 0.5, 0.0);
+            // Face the camera, exactly as a name tag does.
+            matrices.multiply(this.dispatcher.getRotation());
+            // Textures are 1 block per 16 px; this makes the rocket ~2 blocks
+            // tall, which is visible without dominating the screen.
+            float scale = 2.0f;
+            matrices.scale(-scale, -scale, scale);
+
+            VertexConsumer vc = vertexConsumers.getBuffer(RenderLayer.getEntityTranslucentEmissive(this.getTexture(entity)));
+            int full = LightmapTextureManager.MAX_LIGHT_COORDINATE;
+            drawQuad(matrices, vc, full);
+
             matrices.pop();
             super.render(entity, yaw, tickDelta, matrices, vertexConsumers, light);
+        }
+
+        /** Draws a 1x1 textured quad centred on the origin. */
+        private static void drawQuad(MatrixStack matrices, VertexConsumer vc, int light) {
+            MatrixStack.Entry e = matrices.peek();
+            // Cheap, uniform normals: the shape is emissive and camera-facing,
+            // so per-vertex lighting would add nothing.
+            float n = 0.0f;
+            vc.vertex(e, -0.5f, -0.5f, 0.0f).color(255, 255, 255, 255).texture(0.0f, 1.0f)
+                .overlay(OverlayTexture.DEFAULT_UV).light(light).normal(e, n, n, 1.0f);
+            vc.vertex(e, 0.5f, -0.5f, 0.0f).color(255, 255, 255, 255).texture(1.0f, 1.0f)
+                .overlay(OverlayTexture.DEFAULT_UV).light(light).normal(e, n, n, 1.0f);
+            vc.vertex(e, 0.5f, 0.5f, 0.0f).color(255, 255, 255, 255).texture(1.0f, 0.0f)
+                .overlay(OverlayTexture.DEFAULT_UV).light(light).normal(e, n, n, 1.0f);
+            vc.vertex(e, -0.5f, 0.5f, 0.0f).color(255, 255, 255, 255).texture(0.0f, 0.0f)
+                .overlay(OverlayTexture.DEFAULT_UV).light(light).normal(e, n, n, 1.0f);
         }
     }
 }
