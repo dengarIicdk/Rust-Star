@@ -39,6 +39,14 @@ public final class RocketItem extends Item {
         if (player.getItemCooldownManager().isCoolingDown(this)) {
             return TypedActionResult.fail(stack);
         }
+        // The item cooldown is client-visible and can be bypassed; this is the
+        // authoritative limit.
+        long now = System.currentTimeMillis();
+        if (!RateLimiter.tryAcquire(player.getUuid(), now)) {
+            player.sendMessage(Text.translatable("starflight.error.rate_limited",
+                RateLimiter.remaining(player.getUuid(), now)), true);
+            return TypedActionResult.fail(stack);
+        }
 
         Vec3d dir = player.getRotationVec(1.0f);
         if (dir.lengthSquared() < 1.0e-9) {

@@ -166,11 +166,78 @@ public final class Commands {
                         + " id=" + rocket.getId()), false);
                 return ok ? 1 : 0;
             }))
+            .then(CommandManager.literal("persistence").executes(ctx -> {
+                // Writes a durable pending strike, then reads it back. Proves the
+                // save format round-trips and that reload re-validates input.
+                ServerCommandSource src = ctx.getSource();
+                var world = src.getServer().getOverworld();
+                Persistence state = Persistence.get(world);
+                state.clear();
+                Persistence.Pending p = new Persistence.Pending(
+                    12.5, -7.5, 5.0, 40, 60, 0L, "00000000-0000-0000-0000-00000000abcd");
+                state.add(p);
+                boolean wrote = state.entries().size() == 1;
+
+                // Round-trip through NBT exactly as a save/load would.
+                var lookup = src.getServer().getRegistryManager();
+                var nbt = state.writeNbt(new net.minecraft.nbt.NbtCompound(), lookup);
+                Persistence reloaded = Persistence.read(nbt, lookup);
+                boolean read = reloaded.entries().size() == 1;
+                boolean matches = read && reloaded.entries().get(0).equals(p);
+
+                // A corrupt radius must be dropped on load, not applied.
+                var bad = nbt.copy();
+                var list = bad.getList("strikes", 10);
+                list.getCompound(0).putDouble("r", 99999.0);
+                boolean rejected = Persistence.read(bad, lookup).entries().isEmpty();
+
+                boolean ok = wrote && read && matches && rejected;
+                src.sendFeedback(() -> Text.literal(
+                    "STARFLIGHT-PERSISTENCE: " + (ok ? "PASS" : "FAIL")
+                        + " wrote=" + wrote + " read=" + read + " matches=" + matches
+                        + " rejectsCorrupt=" + rejected), false);
+                state.clear();
+                return ok ? 1 : 0;
+            }))
+            .then(CommandManager.literal("ratelimit").executes(ctx -> {
+                // Exercises the limiter's window semantics with a fake clock.
+                ServerCommandSource src = ctx.getSource();
+                java.util.UUID id = java.util.UUID.randomUUID();
+                RateLimiter.clear();
+                long t0 = 1_000_000L;
+
+                boolean firstThree = RateLimiter.tryAcquire(id, t0)
+                    && RateLimiter.tryAcquire(id, t0)
+                    && RateLimiter.tryAcquire(id, t0);
+                boolean fourthBlocked = !RateLimiter.tryAcquire(id, t0);
+                boolean stillBlockedLate = !RateLimiter.tryAcquire(id, t0 + RateLimiter.WINDOW_MS - 1);
+                boolean allowedAfterWindow = RateLimiter.tryAcquire(id, t0 + RateLimiter.WINDOW_MS + 1);
+                boolean independentPlayers = RateLimiter.tryAcquire(java.util.UUID.randomUUID(), t0);
+                boolean forgetWorks = forgetIdempotent(id);
+
+                boolean ok = firstThree && fourthBlocked && stillBlockedLate
+                    && allowedAfterWindow && independentPlayers && forgetWorks;
+                RateLimiter.clear();
+                src.sendFeedback(() -> Text.literal(
+                    "STARFLIGHT-RATELIMIT: " + (ok ? "PASS" : "FAIL")
+                        + " burst3=" + firstThree + " blocked4=" + fourthBlocked
+                        + " blockedNearEnd=" + stillBlockedLate
+                        + " resetAfterWindow=" + allowedAfterWindow
+                        + " perPlayer=" + independentPlayers + " forget=" + forgetWorks), false);
+                return ok ? 1 : 0;
+            }))
             .then(CommandManager.literal("cancel").executes(ctx -> {
                 StrikeManager.cancelAll();
                 ctx.getSource().sendFeedback(() -> Text.literal("All strikes cancelled"), false);
                 return 1;
             })));
+    }
+
+    private static boolean forgetIdempotent(java.util.UUID id) {
+        RateLimiter.forget(id);
+        RateLimiter.forget(id);
+        // After forgetting, a fresh acquire must succeed even inside the window.
+        return RateLimiter.tryAcquire(id, 1_000_000L);
     }
 
     /** One-shot state shared between the selftest and verify subcommands. */

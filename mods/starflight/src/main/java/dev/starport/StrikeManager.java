@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 
@@ -39,13 +40,17 @@ public final class StrikeManager {
         final long total;
         final long createdAtTick;
         long applied;
+        /** Persisted request, so the strike can be rebuilt after a restart. */
+        final Persistence.Pending request;
 
-        Strike(int slot, ServerWorld world, UUID owner, long total, long createdAtTick) {
+        Strike(int slot, ServerWorld world, UUID owner, long total, long createdAtTick,
+               Persistence.Pending request) {
             this.slot = slot;
             this.world = world;
             this.owner = owner;
             this.total = total;
             this.createdAtTick = createdAtTick;
+            this.request = request;
         }
 
         public int slot() {
@@ -85,9 +90,46 @@ public final class StrikeManager {
                 x, z, radius, yMin, yMax, total);
             return null;
         }
-        Strike s = new Strike(slot, world, owner, total, world.getServer().getTicks());
+        Persistence.Pending request = new Persistence.Pending(
+            x, z, radius, yMin, yMax, 0L, owner == null ? "" : owner.toString());
+        Strike s = new Strike(slot, world, owner, total, world.getServer().getTicks(), request);
         ACTIVE.add(s);
+        // Record the request so a crash mid-strike resumes rather than silently
+        // leaving a half-carved beam behind.
+        Persistence state = Persistence.get(world);
+        state.add(request);
         return s;
+    }
+
+    /**
+     * Re-queues strikes that were in progress when the world was last saved.
+     * Called once on server start. Each request is rebuilt from scratch because
+     * a beam plan is a pure function of its parameters.
+     */
+    public static int resumePending(MinecraftServer server) {
+        if (!Ops.isReady()) {
+            return 0;
+        }
+        ServerWorld world = server.getOverworld();
+        Persistence state = Persistence.get(world);
+        if (state.entries().isEmpty()) {
+            return 0;
+        }
+        int resumed = 0;
+        for (Persistence.Pending p : state.entries()) {
+            int slot = nextSlot++;
+            long total = NativeBridge.buildPlan(p.x(), p.z(), p.radius(), p.yMin(), p.yMax(), slot);
+            if (total <= 0) {
+                NativeBridge.dropPlan(slot);
+                state.remove(p);
+                continue;
+            }
+            UUID owner = p.owner().isEmpty() ? null : UUID.fromString(p.owner());
+            ACTIVE.add(new Strike(slot, world, owner, total, server.getTicks(), p));
+            resumed++;
+        }
+        StarflightMod.LOGGER.info("Resumed {} strike(s) from the saved world", resumed);
+        return resumed;
     }
 
     /** Applies one tick of work to every active strike and retires finished ones. */
@@ -108,6 +150,9 @@ public final class StrikeManager {
             }
             if (examined == 0 || s.isComplete()) {
                 NativeBridge.dropPlan(s.slot);
+                // The strike is finished: drop its persisted request so a
+                // restart does not replay it.
+                Persistence.get(s.world).remove(s.request);
                 it.remove();
             }
         }
@@ -122,6 +167,7 @@ public final class StrikeManager {
     public static void cancelAll() {
         for (Strike s : ACTIVE) {
             NativeBridge.dropPlan(s.slot);
+            Persistence.get(s.world).remove(s.request);
         }
         ACTIVE.clear();
     }

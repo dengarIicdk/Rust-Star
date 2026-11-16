@@ -37,6 +37,10 @@ public final class StarflightMod implements ModInitializer {
         Commands.register();
 
         ServerTickEvents.END_SERVER_TICK.register(StrikeManager::tick);
+        // A strike can span thousands of ticks; if the server stopped mid-way,
+        // pick it back up instead of leaving a half-carved column behind.
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STARTED.register(
+            StrikeManager::resumePending);
         LOGGER.info("Starflight ready (native core {})", NativeBridge.version());
     }
 }

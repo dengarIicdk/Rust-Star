@@ -91,6 +91,10 @@ echo 'starflight registry' >> "$CMDLOG"
 sleep 2
 echo 'starflight flight' >> "$CMDLOG"
 sleep 2
+echo 'starflight persistence' >> "$CMDLOG"
+sleep 2
+echo 'starflight ratelimit' >> "$CMDLOG"
+sleep 2
 echo 'starflight selftest' >> "$CMDLOG"
 sleep 6
 echo 'starflight verify' >> "$CMDLOG"
@@ -108,6 +112,8 @@ done
 STATUS=$(grep -c 'Starflight native=' "$LOG" || true)
 REG_LINE=$(grep -m1 'STARFLIGHT-REGISTRY' "$LOG" || true)
 FLIGHT_LINE=$(grep -m1 'STARFLIGHT-FLIGHT' "$LOG" || true)
+PERSIST_LINE=$(grep -m1 'STARFLIGHT-PERSISTENCE' "$LOG" || true)
+RATE_LINE=$(grep -m1 'STARFLIGHT-RATELIMIT' "$LOG" || true)
 QUEUED=$(grep -c 'STARFLIGHT-SELFTEST: QUEUED' "$LOG" || true)
 VERIFY_LINE=$(grep -m1 'STARFLIGHT-VERIFY' "$LOG" || true)
 FAIL_LINE=$(grep -m1 'STARFLIGHT-SELFTEST: FAIL' "$LOG" || true)
@@ -115,6 +121,8 @@ FAIL_LINE=$(grep -m1 'STARFLIGHT-SELFTEST: FAIL' "$LOG" || true)
 echo "itest: status-lines=$STATUS queued-lines=$QUEUED"
 echo "itest: registry: ${REG_LINE:-<none>}"
 echo "itest: flight  : ${FLIGHT_LINE:-<none>}"
+echo "itest: persist : ${PERSIST_LINE:-<none>}"
+echo "itest: ratelmt : ${RATE_LINE:-<none>}"
 echo "itest: verdict : ${VERIFY_LINE:-<none>} ${FAIL_LINE:-}"
 
 if [[ -n "$FAIL_LINE" ]]; then
@@ -126,7 +134,7 @@ if [[ -z "$VERIFY_LINE" ]]; then
   grep -E 'starflight (status|selftest|verify)|Unknown or incomplete command|No player' "$LOG" | tail -10
   exit 2
 fi
-if [[ "$VERIFY_LINE" == *PASS* && "$REG_LINE" == *PASS* && "$FLIGHT_LINE" == *PASS* ]]; then
+if [[ "$VERIFY_LINE" == *PASS* && "$REG_LINE" == *PASS* && "$FLIGHT_LINE" == *PASS*       && "$PERSIST_LINE" == *PASS* && "$RATE_LINE" == *PASS* ]]; then
   echo "RESULT: PASS"
   exit 0
 fi
