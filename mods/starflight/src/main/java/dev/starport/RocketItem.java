@@ -56,6 +56,10 @@ public final class RocketItem extends Item {
         Vec3d start = player.getPos().add(0, player.getStandingEyeHeight() - 0.15, 0).add(dir.multiply(1.2));
         RocketEntity rocket = RocketEntity.create(
             (net.minecraft.server.world.ServerWorld) world, player, start, dir, tuning);
+        if (rocket == null) {
+            player.sendMessage(Text.translatable("starflight.error.invalid_direction"), true);
+            return TypedActionResult.fail(stack);
+        }
         world.spawnEntity(rocket);
 
         player.getItemCooldownManager().set(this, COOLDOWN_TICKS);

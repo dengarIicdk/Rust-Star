@@ -7,5 +7,6 @@
   "starflight.launched": "Rocket away (radius %s)",
   "starflight.scope.no_target": "No target in range",
   "starflight.scope.report": "%s — this would erase %s blocks",
-  "starflight.error.invalid_tuning": "Invalid strike configuration"
+  "starflight.error.invalid_tuning": "Invalid strike configuration",
+  "starflight.error.invalid_direction": "Launch direction is invalid"
 }

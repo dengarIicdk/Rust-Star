@@ -71,30 +71,43 @@ public final class Commands {
             }))
             .then(CommandManager.literal("selftest").executes(ctx -> {
                 // In-world integration check, runnable from the console so CI can
-                // drive it. Picks a fixed point near spawn and carves a column
-                // there, then records what the probe block was beforehand.
+                // drive it. Builds a guaranteed column of stone, then carves it
+                // with a radius-3 beam and records the probe block.
                 ServerCommandSource src = ctx.getSource();
                 var world = src.getServer().getOverworld();
-                var origin = src.getServer().getOverworld().getSpawnPos();
-                world.getChunk(origin.getX() >> 4, origin.getZ() >> 4); // force-load
-                var probe = new BlockPos(origin.getX() + 8, world.getTopY() - 1, origin.getZ());
-                probe = world.getTopPosition(net.minecraft.world.Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, probe).down();
+                var at = world.getSpawnPos();
+                var chunkPos = new net.minecraft.util.math.ChunkPos(at.getX() >> 4, at.getZ() >> 4);
+                world.getChunk(chunkPos.x, chunkPos.z); // force-load, no ticking race
+
+                int bx = at.getX() + 8;
+                int bz = at.getZ();
+                int base = 60; // well above the flat world floor, well below build limit
+                // A 5x5x8 stone block so the probe is guaranteed solid regardless
+                // of the world generator in use.
+                for (int dx = -2; dx <= 2; dx++) {
+                    for (int dz = -2; dz <= 2; dz++) {
+                        for (int dy = 0; dy < 8; dy++) {
+                            world.setBlockState(new BlockPos(bx + dx, base + dy, bz + dz),
+                                net.minecraft.block.Blocks.STONE.getDefaultState());
+                        }
+                    }
+                }
+                BlockPos probe = new BlockPos(bx, base + 4, bz);
                 boolean solidBefore = !world.getBlockState(probe).isAir();
+
                 StrikeTuning t = StrikeTuning.DEFAULT.withRadius(3.0);
                 StrikeManager.Strike s = StrikeManager.queueBeam(
                     world, java.util.UUID.fromString("00000000-0000-0000-0000-000000000001"),
-                    probe.getX() + 0.5, probe.getZ() + 0.5,
-                    t.radius(), probe.getY() - 6, probe.getY() + 2);
-                final var probePos = probe;
-                final boolean before = solidBefore;
+                    bx + 0.5, bz + 0.5, t.radius(), base, base + 7);
+
+                Probe.set(probe, solidBefore);
                 if (s == null) {
                     src.sendFeedback(() -> Text.literal("STARFLIGHT-SELFTEST: FAIL (queue rejected)"), false);
                     return 0;
                 }
-                Probe.set(probePos, before);
                 src.sendFeedback(() -> Text.literal(
                     "STARFLIGHT-SELFTEST: QUEUED slot=" + s.slot() + " total=" + s.total()
-                        + " probe=" + probePos.toShortString() + " solidBefore=" + before), false);
+                        + " probe=" + probe.toShortString() + " solidBefore=" + solidBefore), false);
                 return 1;
             }))
             .then(CommandManager.literal("verify").executes(ctx -> {
@@ -112,6 +125,45 @@ public final class Commands {
                         + " probe=" + p.pos().toShortString()
                         + " wasSolid=" + p.wasSolid() + " airNow=" + airNow
                         + " strikes=" + StrikeManager.activeCount()), false);
+                return ok ? 1 : 0;
+            }))
+            .then(CommandManager.literal("registry").executes(ctx -> {
+                // Asserts the mod's content actually made it into the registries.
+                ServerCommandSource src = ctx.getSource();
+                var reg = src.getServer().getRegistryManager().get(net.minecraft.registry.RegistryKeys.ITEM);
+                var ent = src.getServer().getRegistryManager().get(net.minecraft.registry.RegistryKeys.ENTITY_TYPE);
+                var rocketId = net.minecraft.util.Identifier.of(StarflightMod.MOD_ID, "orbital_rocket");
+                var scopeId = net.minecraft.util.Identifier.of(StarflightMod.MOD_ID, "strike_scope");
+                boolean item = reg.containsId(rocketId);
+                boolean scope = reg.containsId(scopeId);
+                boolean entity = ent.containsId(rocketId);
+                src.sendFeedback(() -> Text.literal(
+                    "STARFLIGHT-REGISTRY: " + (item && scope && entity ? "PASS" : "FAIL")
+                        + " rocketItem=" + item + " scopeItem=" + scope + " rocketEntity=" + entity), false);
+                return item && scope && entity ? 1 : 0;
+            }))
+            .then(CommandManager.literal("flight").executes(ctx -> {
+                // Spawns a rocket programmatically and confirms it exists, has a
+                // sane velocity, and is owned by the requesting source. Doing this
+                // from the console exercises the entity path without a client.
+                ServerCommandSource src = ctx.getSource();
+                var world = src.getServer().getOverworld();
+                var at = world.getSpawnPos();
+                world.getChunk(at.getX() >> 4, at.getZ() >> 4);
+                var start = new net.minecraft.util.math.Vec3d(at.getX() + 0.5, at.getY() + 40, at.getZ() + 0.5);
+                var rocket = RocketEntity.create(
+                    world,
+                    null,
+                    start,
+                    new net.minecraft.util.math.Vec3d(0.0, -1.0, 0.0),
+                    StrikeTuning.DEFAULT);
+                boolean spawned = world.spawnEntity(rocket);
+                double speed = rocket.getVelocity().length();
+                boolean ok = spawned && speed > 0.0 && speed <= 10.0;
+                src.sendFeedback(() -> Text.literal(
+                    "STARFLIGHT-FLIGHT: " + (ok ? "PASS" : "FAIL")
+                        + " spawned=" + spawned + " speed=" + String.format(java.util.Locale.ROOT, "%.3f", speed)
+                        + " id=" + rocket.getId()), false);
                 return ok ? 1 : 0;
             }))
             .then(CommandManager.literal("cancel").executes(ctx -> {

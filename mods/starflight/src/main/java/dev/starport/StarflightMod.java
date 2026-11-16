@@ -16,6 +16,9 @@ public final class StarflightMod implements ModInitializer {
     public static final String MOD_ID = "starflight";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
+    /** Verbose per-tick strike tracing; enable with -Dstarflight.debug=true. */
+    public static final boolean DEBUG_STRIKES = Boolean.getBoolean("starflight.debug");
+
     @Override
     public void onInitialize() {
         LOGGER.info("Starflight initialising");

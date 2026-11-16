@@ -229,6 +229,50 @@ mod tests {
     }
 
     #[test]
+    fn oversized_request_is_clamped_to_the_tick_budget() {
+        // The budget is not advisory: asking for more than MAX_BLOCKS_PER_TICK
+        // must never hand back more than that, or a caller could stall a tick.
+        let s = BeamSpec {
+            center_x: 0.0,
+            center_z: 0.0,
+            radius: 12.0,
+            y_min: 0,
+            y_max: 200,
+        }
+        .validate()
+        .expect("valid");
+        let mut plan = Plan::build(BeamBlocks::new(s)).expect("under cap");
+        let batch = plan.take_batch(usize::MAX);
+        assert_eq!(batch.len() as u32, MAX_BLOCKS_PER_TICK);
+    }
+
+    #[test]
+    fn many_small_batches_drain_exactly_once() {
+        let s = BeamSpec {
+            center_x: 0.0,
+            center_z: 0.0,
+            radius: 4.0,
+            y_min: 0,
+            y_max: 12,
+        }
+        .validate()
+        .expect("valid");
+        let mut plan = Plan::build(BeamBlocks::new(s)).expect("ok");
+        let total = plan.total_blocks;
+        let mut seen = std::collections::HashSet::new();
+        let mut handed = 0u64;
+        while !plan.is_complete() {
+            let batch = plan.take_batch(3).to_vec();
+            handed += batch.len() as u64;
+            for p in batch {
+                assert!(seen.insert((p.x, p.y, p.z)), "duplicate position");
+            }
+        }
+        assert_eq!(handed, total);
+        assert_eq!(seen.len() as u64, total);
+    }
+
+    #[test]
     fn batch_never_exceeds_request() {
         let s = BeamSpec {
             center_x: 0.0,

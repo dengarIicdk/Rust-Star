@@ -41,13 +41,23 @@ public final class RocketEntity extends ProjectileEntity {
         super(type, world);
     }
 
-    public static RocketEntity create(ServerWorld world, ServerPlayerEntity owner, Vec3d pos, Vec3d direction, StrikeTuning in) {
+    public static RocketEntity create(
+            ServerWorld world, ServerPlayerEntity owner, Vec3d pos, Vec3d direction, StrikeTuning in) {
+        StrikeTuning tuning = in.orDefault();
         RocketEntity r = new RocketEntity(ModEntities.ORBITAL_ROCKET, world);
+        // Reject a zero/NaN direction rather than spawning a rocket that can
+        // never move and never expires by impact.
+        if (!isFinite(direction) || direction.lengthSquared() < 1.0e-9) {
+            return null;
+        }
+        Vec3d dir = direction.normalize();
         r.setPosition(pos);
-        r.setVelocity(direction.normalize().multiply(in.speed()));
-        r.tuning = in.orDefault();
-        r.setOwner(owner);
-        r.getDataTracker().set(OWNER_ID, owner.getId());
+        r.setVelocity(dir.multiply(tuning.speed()));
+        r.tuning = tuning;
+        if (owner != null) {
+            r.setOwner(owner);
+            r.getDataTracker().set(OWNER_ID, owner.getId());
+        }
         return r;
     }
 
@@ -110,6 +120,11 @@ public final class RocketEntity extends ProjectileEntity {
                 serverWorld.getBottomY(), serverWorld.getTopY() - 1);
         }
         discard();
+    }
+
+    /** Minecraft has no isFinite() on Vec3d, and NaN here would poison the world. */
+    private static boolean isFinite(Vec3d v) {
+        return Double.isFinite(v.x) && Double.isFinite(v.y) && Double.isFinite(v.z);
     }
 
     private java.util.UUID getOwnerUuid() {

@@ -33,11 +33,22 @@ echo "itest: starting server (log: $LOG)"
 # Feed stdin from a regular file we append to, so commands can be injected at
 # specific points. A FIFO does not work here: Gradle's stdin redirect fails on
 # Windows pipes, and Minecraft never sees the commands.
-( tail -f -n +1 "$CMDLOG" 2>/dev/null | "$GRADLE" --no-daemon --console=plain runServer > "$LOG" 2>&1 ) &
+( tail -f -n +1 "$CMDLOG" 2>/dev/null | "$GRADLE" --no-daemon --console=plain -Dstarflight.debug=true runServer > "$LOG" 2>&1 ) &
 SERVER_PID=$!
 
+kill_java_tree() {
+  # Git Bash has no pkill; use taskkill on Windows, `kill` elsewhere.
+  if command -v taskkill >/dev/null 2>&1; then
+    for pid in $(tasklist //FI "IMAGENAME eq java.exe" //FO CSV //NH 2>/dev/null         | awk -F'","' '{print $2}'); do
+      taskkill //PID "$pid" //F >/dev/null 2>&1 || true
+    done
+  else
+    pkill -f dev-launch-injector 2>/dev/null || true
+  fi
+}
+
 cleanup() {
-  pkill -f "dev-launch-injector" 2>/dev/null || true
+  kill_java_tree
   kill "$SERVER_PID" 2>/dev/null || true
   wait "$SERVER_PID" 2>/dev/null || true
   rm -f "$CMDLOG"
@@ -75,21 +86,36 @@ grep -m1 'starflight.*Native core' "$LOG" || true
 # if possible; otherwise the selftest command falls back to spawning at origin.
 echo "--- issuing commands ---"
 echo 'starflight status' >> "$CMDLOG"
-sleep 3
+sleep 2
+echo 'starflight registry' >> "$CMDLOG"
+sleep 2
+echo 'starflight flight' >> "$CMDLOG"
+sleep 2
 echo 'starflight selftest' >> "$CMDLOG"
 sleep 6
 echo 'starflight verify' >> "$CMDLOG"
-sleep 4
+sleep 3
 
-sleep 2
+# Ask the server to shut down cleanly, then make sure it did.
+echo 'stop' >> "$CMDLOG"
+for _ in $(seq 1 30); do
+  if ! tasklist //FI "IMAGENAME eq java.exe" //NH 2>/dev/null | grep -qi java; then
+    break
+  fi
+  sleep 1
+done
 
 STATUS=$(grep -c 'Starflight native=' "$LOG" || true)
+REG_LINE=$(grep -m1 'STARFLIGHT-REGISTRY' "$LOG" || true)
+FLIGHT_LINE=$(grep -m1 'STARFLIGHT-FLIGHT' "$LOG" || true)
 QUEUED=$(grep -c 'STARFLIGHT-SELFTEST: QUEUED' "$LOG" || true)
 VERIFY_LINE=$(grep -m1 'STARFLIGHT-VERIFY' "$LOG" || true)
 FAIL_LINE=$(grep -m1 'STARFLIGHT-SELFTEST: FAIL' "$LOG" || true)
 
 echo "itest: status-lines=$STATUS queued-lines=$QUEUED"
-echo "itest: verdict: ${VERIFY_LINE:-<none>} ${FAIL_LINE:-}"
+echo "itest: registry: ${REG_LINE:-<none>}"
+echo "itest: flight  : ${FLIGHT_LINE:-<none>}"
+echo "itest: verdict : ${VERIFY_LINE:-<none>} ${FAIL_LINE:-}"
 
 if [[ -n "$FAIL_LINE" ]]; then
   echo "RESULT: FAIL"
@@ -100,7 +126,7 @@ if [[ -z "$VERIFY_LINE" ]]; then
   grep -E 'starflight (status|selftest|verify)|Unknown or incomplete command|No player' "$LOG" | tail -10
   exit 2
 fi
-if [[ "$VERIFY_LINE" == *PASS* ]]; then
+if [[ "$VERIFY_LINE" == *PASS* && "$REG_LINE" == *PASS* && "$FLIGHT_LINE" == *PASS* ]]; then
   echo "RESULT: PASS"
   exit 0
 fi

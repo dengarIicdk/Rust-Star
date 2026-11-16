@@ -50,6 +50,11 @@ loom {
             property "java.library.path", file("../../rust/target/release").absolutePath
             // Feed console commands so an automated integration test can drive
             // a real dedicated server without a client.
+            // Forward the debug flag so the strike trace can be enabled from the
+            // command line without editing the build file.
+            if (System.getProperty("starflight.debug") != null) {
+                property "starflight.debug", System.getProperty("starflight.debug")
+            }
             def cmdFile = file("run/test-commands.txt")
             if (cmdFile.exists()) {
                 programArgs "--nogui"

@@ -101,6 +101,11 @@ public final class StrikeManager {
             Strike s = it.next();
             int examined = BlockApplier.drain(s.world, s.slot, budgetEach);
             s.applied += examined;
+            if (StarflightMod.DEBUG_STRIKES) {
+                StarflightMod.LOGGER.info(
+                    "strike slot={} applied={}/{} examined={} complete={}",
+                    s.slot, s.applied, s.total, examined, NativeBridge.planComplete(s.slot));
+            }
             if (examined == 0 || s.isComplete()) {
                 NativeBridge.dropPlan(s.slot);
                 it.remove();
