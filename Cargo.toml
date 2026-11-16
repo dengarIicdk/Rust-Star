@@ -1,0 +1,14 @@
+[package]
+name = "mod-starflight"
+version = "0.1.0"
+edition = "2021"
+description = "Calls an orbital strike down on a marked target."
+license = "MIT"
+
+# The launcher supplies horizon-mod-api from the pinned SDK it stages; the
+# dependency path below is the launcher-owned form it requires.
+[dependencies]
+horizon-mod-api = { path = ".horizon/sdk/api/crates/horizon-mod-api" }
+
+[package.metadata.horizon]
+sdk = "69ab572dbd1bf2f2924a424f791014e09d9d0b50"

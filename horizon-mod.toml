@@ -1,0 +1,13 @@
+id = "starflight"
+name = "Starflight"
+version = "0.1.0"
+description = "Calls an orbital strike down on a marked target."
+authors = ["Starflight Dev"]
+api = "0.2"
+side = "server"
+capabilities = ["registries"]
+
+[native]
+game = "26.3"
+horizon = "69ab572dbd1bf2f2924a424f791014e09d9d0b50"
+mixins = "e59da9094f0c2fdda6c627fe9eff22dec6a906f0"
