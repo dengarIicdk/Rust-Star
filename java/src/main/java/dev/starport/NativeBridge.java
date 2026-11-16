@@ -44,7 +44,10 @@ public final class NativeBridge {
         if (failure == null) {
             return;
         }
-        // Fallback: a platform-named subdirectory next to the JAR.
+        // Fallback 1: a platform-named subdirectory. Two layouts are supported,
+        // because dev runs and installed JARs differ:
+        //   <jar>/natives/<platform>/lib      (installed)
+        //   <dir>/<platform>/lib              (next to an exploded class dir)
         String os = System.getProperty("os.name", "").toLowerCase();
         String arch = System.getProperty("os.arch", "").toLowerCase();
         String libName = System.mapLibraryName("starflight_jni");
@@ -56,6 +59,28 @@ public final class NativeBridge {
         } else {
             subdir = arch.contains("aarch") ? "linux-arm64" : "linux-x64";
         }
+
+        Throwable lastError = failure;
+        // Fallback 2: extract the bundled copy from the JAR to a temp file. This
+        // is what makes a plain "drop the jar in mods/" install work without the
+        // user configuring java.library.path at all.
+        try {
+            String resource = "/natives/" + subdir + "/" + libName;
+            try (java.io.InputStream in = NativeBridge.class.getResourceAsStream(resource)) {
+                if (in != null) {
+                    java.nio.file.Path tmp = java.nio.file.Files.createTempFile("starflight_jni", libName);
+                    tmp.toFile().deleteOnExit();
+                    java.nio.file.Files.copy(in, tmp, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    System.load(tmp.toAbsolutePath().toString());
+                    loaded = true;
+                    return;
+                }
+            }
+        } catch (UnsatisfiedLinkError | java.io.IOException e) {
+            lastError = e;
+        }
+
+        // Fallback 3: a directory next to the classes (exploded dev run).
         try {
             String base = NativeBridge.class.getProtectionDomain().getCodeSource().getLocation().getPath();
             java.nio.file.Path dir = java.nio.file.Path.of(base).getParent().resolve(subdir);
@@ -69,10 +94,10 @@ public final class NativeBridge {
             // fall through to the diagnostic
         }
         throw new IllegalStateException(
-            "Cannot load starflight_jni native library. Set -Djava.library.path to the directory "
-                + "containing the built library (rust/target/release), or bundle it under "
-                + "'/" + subdir + "/" + libName + "'. Root cause: " + failure,
-            failure);
+            "Cannot load starflight_jni. Tried java.library.path, the JAR's /natives/" + subdir + "/, "
+                + "and a sibling '" + subdir + "' directory. Build it with 'cargo build --release' or set "
+                + "-Djava.library.path=<dir containing " + libName + ">. Root cause: " + lastError,
+            lastError);
     }
 
     /** Version handshake. Returns the Rust crate version, or throws if ABI mismatch. */

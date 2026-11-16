@@ -1,0 +1,11 @@
+{
+  "item.starflight.orbital_rocket": "Orbital Rocket",
+  "item.starflight.orbital_rocket.tooltip": "Marks a target. Erases the column beneath it.",
+  "item.starflight.strike_scope": "Strike Scope",
+  "item.starflight.strike_scope.tooltip": "Reads out the size of a strike without firing.",
+  "entity.starflight.orbital_rocket": "Orbital Rocket",
+  "starflight.launched": "Rocket away (radius %s)",
+  "starflight.scope.no_target": "No target in range",
+  "starflight.scope.report": "%s — this would erase %s blocks",
+  "starflight.error.invalid_tuning": "Invalid strike configuration"
+}

@@ -1,0 +1,87 @@
+plugins {
+    id "fabric-loom" version "1.11.8"
+    id "java"
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+}
+
+processResources {
+    inputs.property "version", project.version
+    filesMatching("fabric.mod.json") {
+        expand "version": project.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = 21
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+    withSourcesJar()
+}
+
+// Bundle the platform native libraries so an installed JAR is self-contained.
+// Only files that actually exist are included, so a build without a native
+// toolchain still produces a (clearly degraded) jar instead of failing.
+def nativeSourceDirs = [
+    "win-x64"  : file("../../rust/target/release/starflight_jni.dll"),
+    "linux-x64": file("../../rust/target/release/libstarflight_jni.so"),
+]
+
+// Make the native library visible to dev runs (runServer/runClient) too, so the
+// integration test exercises the same code path an installed jar would.
+loom {
+    runs {
+        server {
+            property "java.library.path", file("../../rust/target/release").absolutePath
+            // Feed console commands so an automated integration test can drive
+            // a real dedicated server without a client.
+            def cmdFile = file("run/test-commands.txt")
+            if (cmdFile.exists()) {
+                programArgs "--nogui"
+                runDir "run"
+            }
+        }
+        client {
+            property "java.library.path", file("../../rust/target/release").absolutePath
+        }
+    }
+}
+
+jar {
+    from("../../LICENSE") {
+        rename { "LICENSE-starflight" }
+    }
+    nativeSourceDirs.each { platform, libFile ->
+        if (libFile.exists()) {
+            from(libFile) {
+                into "natives/${platform}"
+            }
+        }
+    }
+}
+// Print the exact server launch command so the integration harness can run the
+// server itself (and own stdin) instead of going through Gradle's daemon.
+tasks.register("printServerCommand") {
+    doLast {
+        def run = loom.runs.getByName("server")
+        def args = run.getProgramArgs()
+        println "SERVER_PROGRAM_ARGS=" + args.join(" ")
+        println "SERVER_RUN_DIR=" + run.getRunDir()
+        println "SERVER_JVM_ARGS=" + run.getVmArgs().join(" ")
+    }
+}

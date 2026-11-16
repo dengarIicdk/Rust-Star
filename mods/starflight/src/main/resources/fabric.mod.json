@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "starflight",
+  "version": "${version}",
+  "name": "Starflight",
+  "description": "Independent orbital-strike mechanics with a Rust simulation core. Not a port of any All-Rights-Reserved mod.",
+  "authors": ["Starflight contributors"],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/starflight/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["dev.starport.StarflightMod"],
+    "client": ["dev.starport.StarflightClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "fabric-api": "*",
+    "minecraft": "~1.21.1",
+    "java": ">=21"
+  }
+}

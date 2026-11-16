@@ -19,3 +19,9 @@ run/
 # Java build output
 java/out/
 *.class
+
+# Minecraft dev run (worlds, logs, downloaded jars)
+mods/*/run/
+mods/*/build/
+mods/*/.gradle/
+artifacts/preview/
