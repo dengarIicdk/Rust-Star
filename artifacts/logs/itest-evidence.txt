@@ -4,5 +4,6 @@ STARFLIGHT-FLIGHT: PASS spawned=true speed=6.000 id=1
 STARFLIGHT-PERSISTENCE: PASS wrote=true read=true matches=true rejectsCorrupt=true
 STARFLIGHT-RATELIMIT: PASS burst3=true blocked4=true blockedNearEnd=true resetAfterWindow=true perPlayer=true forget=true
 STARFLIGHT-CONFIG: PASS radius=128.0 damage=60.0 speed=2.5 lifetime=400 worldEdit=true maxActive=4 nativeValid=true
-STARFLIGHT-SELFTEST: QUEUED slot=1000 total=232 probe=8, 64, 0 solidBefore=true
-STARFLIGHT-VERIFY: PASS probe=8, 64, 0 wasSolid=true airNow=true strikes=0
+STARFLIGHT-ORBIT: PASS spawnY=500 top=320 startedHigh=true aliveAfterSpawn=true ticks=94 removed=true
+STARFLIGHT-SELFTEST: QUEUED slot=1002 total=232 probe=8, 64, 0 solidBefore=true
+STARFLIGHT-VERIFY: PASS probe=8, 64, 0 wasSolid=true airNow=true strikes=2

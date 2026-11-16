@@ -93,16 +93,32 @@ public final class RocketEntity extends ProjectileEntity {
         if (getWorld().isClient) {
             // Smoke trail while flying. Client-side keeps it smooth and costs
             // the server nothing.
-            // Several flames around the body so the trail has width, not a
-            // single thin line.
-            for (int i = 0; i < 6; i++) {
+            // A visible beam column, not a trail behind a dot. The reference
+            // mod shows a wide pillar of light from the sky, so the column is
+            // drawn around the descent axis with a bright core and a broader
+            // glow, plus fire at the tip.
+            double beamRadius = 2.5;
+            for (int i = 0; i < 14; i++) {
                 double a = getWorld().random.nextDouble() * Math.PI * 2;
-                double off = getWorld().random.nextDouble() * 1.6;
-                getWorld().addParticle(net.minecraft.particle.ParticleTypes.FLAME,
-                    getX() + Math.cos(a) * off, getY(), getZ() + Math.sin(a) * off, 0.0, 0.0, 0.0);
+                double off = getWorld().random.nextDouble() * beamRadius;
+                double px = getX() + Math.cos(a) * off;
+                double pz = getZ() + Math.sin(a) * off;
+                // Tail sparks high above the projectile, so the column reads as
+                // continuous rather than a moving clump.
+                double py = getY() + getWorld().random.nextDouble() * 12.0;
+                getWorld().addParticle(net.minecraft.particle.ParticleTypes.END_ROD,
+                    px, py, pz, 0.0, 0.0, 0.0);
             }
-            getWorld().addParticle(net.minecraft.particle.ParticleTypes.CAMPFIRE_COSY_SMOKE,
-                getX(), getY(), getZ(), 0.0, 0.01, 0.0);
+            for (int i = 0; i < 10; i++) {
+                double a = getWorld().random.nextDouble() * Math.PI * 2;
+                double off = getWorld().random.nextDouble() * beamRadius * 1.8;
+                getWorld().addParticle(net.minecraft.particle.ParticleTypes.FLAME,
+                    getX() + Math.cos(a) * off, getY(), getZ() + Math.sin(a) * off, 0.0, -1.5, 0.0);
+            }
+            for (int i = 0; i < 4; i++) {
+                getWorld().addParticle(net.minecraft.particle.ParticleTypes.CAMPFIRE_COSY_SMOKE,
+                    getX(), getY() + getWorld().random.nextDouble() * 6.0, getZ(), 0.0, 0.02, 0.0);
+            }
             return;
         }
         age++;
@@ -130,7 +146,13 @@ public final class RocketEntity extends ProjectileEntity {
         }
 
         // 2. Out-of-world check.
-        if (pos.getY() < getWorld().getBottomY() - 16 || pos.getY() > getWorld().getTopY() + 64) {
+        //
+        // The upper bound must clear the spawn height: the strike starts
+        // ORBIT_HEIGHT above the build limit, and the old +64 margin made the
+        // projectile discard itself on its first tick — which is exactly why no
+        // rocket and no explosion ever appeared.
+        if (pos.getY() < getWorld().getBottomY() - 16
+                || pos.getY() > descendFrom + 32) {
             discard();
             return;
         }
@@ -158,16 +180,22 @@ public final class RocketEntity extends ProjectileEntity {
                 SoundEvent.of(Identifier.of(StarflightMod.MOD_ID, "impact")),
                 SoundCategory.BLOCKS, 8.0f, 0.55f);
 
-            // A large burst so the impact reads as massive before the blocks
-            // finish being removed over the coming ticks. Spread is scaled to
-            // the strike radius so a small strike stays small.
+            // A wall of impact effects, spread across the whole crater rather
+            // than one point, so it reads as a massive strike. Counts are capped
+            // so a radius-128 hit does not send hundreds of thousands of
+            // particles and stutter the client.
             double r = tuning.radius();
+            double spread = r * 0.75;
             serverWorld.spawnParticles(net.minecraft.particle.ParticleTypes.EXPLOSION_EMITTER,
-                x, y, z, (int) Math.min(40, Math.max(4, r / 2)), r * 0.5, 2.0, r * 0.5, 0.0);
+                x, y, z, (int) Math.min(120, Math.max(6, r / 1.5)), spread, 6.0, spread, 0.0);
+            serverWorld.spawnParticles(net.minecraft.particle.ParticleTypes.EXPLOSION,
+                x, y, z, (int) Math.min(200, Math.max(10, r)), spread, 8.0, spread, 0.0);
             serverWorld.spawnParticles(net.minecraft.particle.ParticleTypes.LARGE_SMOKE,
-                x, y, z, (int) Math.min(400, Math.max(30, r * 4)), r * 0.6, 4.0, r * 0.6, 0.4);
+                x, y, z, (int) Math.min(1200, Math.max(60, r * 8)), spread, 14.0, spread, 0.6);
             serverWorld.spawnParticles(net.minecraft.particle.ParticleTypes.FLAME,
-                x, y, z, (int) Math.min(300, Math.max(20, r * 3)), r * 0.6, 3.0, r * 0.6, 0.6);
+                x, y, z, (int) Math.min(900, Math.max(40, r * 6)), spread, 10.0, spread, 0.9);
+            serverWorld.spawnParticles(net.minecraft.particle.ParticleTypes.LAVA,
+                x, y, z, (int) Math.min(300, Math.max(15, r * 2)), spread, 4.0, spread, 0.3);
         }
         discard();
     }

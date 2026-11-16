@@ -243,6 +243,46 @@ public final class Commands {
                         + " nativeValid=" + valid), false);
                 return ok ? 1 : 0;
             }))
+            .then(CommandManager.literal("orbit-test").executes(ctx -> {
+                // Spawns a strike from orbit and reports whether it survives its
+                // first ticks and actually reaches an impact. This is the check
+                // that would have caught the projectile discarding itself at
+                // spawn, which made both the rocket and the explosion invisible.
+                ServerCommandSource src = ctx.getSource();
+                var world = src.getServer().getOverworld();
+                var at = world.getSpawnPos();
+                world.getChunk(at.getX() >> 4, at.getZ() >> 4);
+                var target = new net.minecraft.util.math.Vec3d(at.getX() + 0.5, at.getY(), at.getZ() + 0.5);
+
+                var rocket = RocketEntity.createFromOrbit(world, null, target, StrikeTuning.DEFAULT);
+                if (rocket == null) {
+                    src.sendFeedback(() -> Text.literal("STARFLIGHT-ORBIT: FAIL could not create"), false);
+                    return 0;
+                }
+                double spawnY = rocket.getY();
+                world.spawnEntity(rocket);
+
+                boolean aliveAfterSpawn = !rocket.isRemoved();
+                // Step it forward by hand until it hits or leaves the world.
+                int steps = 0;
+                while (!rocket.isRemoved() && steps < 400) {
+                    rocket.tick();
+                    steps++;
+                }
+                final boolean removed = rocket.isRemoved();
+                final boolean startedHigh = spawnY > world.getTopY();
+                final boolean wasAlive = aliveAfterSpawn;
+                final int stepped = steps;
+
+                boolean ok = startedHigh && wasAlive && removed && stepped > 1;
+                src.sendFeedback(() -> Text.literal(
+                    "STARFLIGHT-ORBIT: " + (ok ? "PASS" : "FAIL")
+                        + " spawnY=" + (int) spawnY + " top=" + world.getTopY()
+                        + " startedHigh=" + startedHigh
+                        + " aliveAfterSpawn=" + wasAlive
+                        + " ticks=" + stepped + " removed=" + removed), false);
+                return ok ? 1 : 0;
+            }))
             .then(CommandManager.literal("cancel").executes(ctx -> {
                 StrikeManager.cancelAll();
                 ctx.getSource().sendFeedback(() -> Text.literal("All strikes cancelled"), false);
