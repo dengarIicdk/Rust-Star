@@ -30,6 +30,8 @@ trap cleanup EXIT
 mkdir -p "$STAGE/src"
 cp "$ROOT/horizon/starflight/src/lib.rs" "$ROOT/horizon/starflight/src/strike.rs" "$STAGE/src/"
 cp "$ROOT/horizon/starflight/horizon-mod.toml" "$STAGE/"
+# Content artifacts ship inside the package; without them the mod has no item.
+cp -r "$ROOT/horizon/starflight/assets" "$ROOT/horizon/starflight/data" "$STAGE/" 2>/dev/null || true
 
 cat > "$STAGE/Cargo.toml" <<TOML
 [package]

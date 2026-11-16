@@ -125,3 +125,43 @@ fn server_tick(&self, host: &mut dyn ServerHost, event: &mut ServerTickEvent<'_>
 `capabilities = ["registries"]` is the **only** accepted value; `"world-write"`
 is rejected as an unknown variant. World writes are gated by
 `#[access(WorldOnly)]` on the host method, not by a manifest capability.
+
+## Content declarations in code (added after the item work)
+
+Items need not be JSON: the `items` hook declares them in code.
+
+```rust
+fn items(&self, _context: &RegistrationContext, event: &mut ItemsEvent<'_>) {
+    event.items.push(Item::new("orbital_rocket", "minecraft:firework_rocket"));
+}
+```
+
+* `ItemsEvent { items: &mut Vec<mod_api::Item> }`, context is
+  `&RegistrationContext`. Asked once at start, both sides.
+* `Item { id, template, max_stack_size, rarity, components, crafting_remainder,
+  block, arm_pose }`. `id` is bare; it uses the manifest's mod id as namespace.
+* `RegistrationContext` cannot be constructed outside the game (`new` is
+  `pub(crate)`), so declaration content is kept in a free function and unit
+  tested separately from the hook.
+
+### Commands
+
+```rust
+fn register_commands(&self, _host: &mut dyn ServerHost, event: &mut RegisterCommandsEvent<'_>);
+fn run_mod_command(&self, _host: &mut dyn ServerHost, event: &mut RunModCommandEvent<'_>) -> Flow;
+```
+
+* `Command::new(usage)` is level 0; `Command::op(usage, level)` sets the operator
+  level (`level()` as a builder method does **not** exist).
+* `RunModCommandEvent { source, command, cancelled }`;
+  `CommandInvocation { literals, arguments, dimension, position: [f64; 3] }`.
+* Arguments are read by name: `event.command.argument("radius")` →
+  `Option<&CommandArgumentValue>`, an enum with `String`, `Integer(i32)`,
+  `Number(f64)`, `Boolean`, `Player`, `Entity`, …
+
+### Running
+
+`cargo horizon-mod run` refuses native mods: they need
+`horizon-launcher native-build <path> --trust-native-code`. No launcher or client
+binary is published (the `launcher` and `sdk-*` release URLs 404), so the mod
+cannot be launched from this machine.

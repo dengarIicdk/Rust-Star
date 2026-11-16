@@ -14,8 +14,9 @@ pub mod strike;
 use std::sync::Mutex;
 
 use mod_api::{
-    BlockEdit, BlockRun, Flow, Hooks, HostSide, Identifier, LogicalSide, RightClickItemEvent,
-    ServerHost, ServerTickEvent,
+    BlockEdit, BlockRun, Command, CommandArgumentValue, Flow, Hooks, HostSide, Identifier, Item,
+    ItemsEvent, LogicalSide, RegisterCommandsEvent, RegistrationContext, RightClickItemEvent,
+    RunModCommandEvent, ServerHost, ServerTickEvent,
 };
 
 /// The item whose right-click calls a strike down.
@@ -32,6 +33,18 @@ const DIMENSION: &str = "minecraft:overworld";
 /// The block every carve writes.
 const CARVE_BLOCK: &str = "minecraft:air";
 
+/// The content this mod declares, kept separate from the hook so it can be
+/// checked without a `RegistrationContext` (which only the game can build).
+///
+/// `orbital_rocket` copies `minecraft:firework_rocket`: a stackable item that
+/// places no block, which is what a strike call should be. One strike per
+/// right-click, and the item is not consumed since nothing declares a
+/// `crafting_remainder` or a use count.
+#[must_use]
+pub fn declarations() -> Vec<Item> {
+    vec![Item::new("orbital_rocket", "minecraft:firework_rocket")]
+}
+
 /// The mod.
 ///
 /// The hooks take `&self` and the mod must be `Sync`, so the live strikes sit
@@ -44,12 +57,75 @@ pub struct Starflight {
 
 #[mod_api::horizon_mod]
 impl Hooks for Starflight {
-    /// Right-clicking with the rocket item calls a strike onto the aimed block.
-    fn right_click_item(
+    /// Registers the rocket item. Without this there is nothing to hold.
+    ///
+    /// `minecraft:firework_rocket` is the template: it is a stackable item with no
+    /// block placement, which is what a strike call should be. Called once at
+    /// start on both sides, so the item exists wherever the mod loads.
+    fn items(&self, _context: &RegistrationContext, event: &mut ItemsEvent<'_>) {
+        event.items.extend(declarations());
+    }
+
+    /// `/starflight strike [radius]` — the same strike, without needing the item.
+    ///
+    /// Exists so the carve can be tested on a server with one command, and so the
+    /// mechanic is reachable if the item is lost.
+    fn register_commands(&self, _host: &mut dyn ServerHost, event: &mut RegisterCommandsEvent<'_>) {
+        event.commands.push(Command::new("starflight strike"));
+        // A custom radius is operator-only: it can carve very large volumes.
+        event
+            .commands
+            .push(Command::op("starflight strike <radius>", 2));
+    }
+
+    /// Runs `/starflight strike`.
+    fn run_mod_command(
         &self,
-        host: HostSide<'_>,
-        event: &mut RightClickItemEvent<'_>,
+        _host: &mut dyn ServerHost,
+        event: &mut RunModCommandEvent<'_>,
     ) -> Flow {
+        let literals = &event.command.literals;
+        if literals.first().map(String::as_str) != Some("starflight") {
+            return Flow::Continue;
+        }
+        if literals.get(1).map(String::as_str) != Some("strike") {
+            return Flow::Continue;
+        }
+
+        // An explicit radius, or the default. Out-of-range is refused by the
+        // core, which reports why; nothing is clamped.
+        let radius = match event.command.argument("radius") {
+            Some(CommandArgumentValue::Number(n)) => *n,
+            Some(CommandArgumentValue::Integer(n)) => f64::from(*n),
+            _ => STRIKE_RADIUS,
+        };
+
+        let [x, y, z] = event.command.position;
+        // Round down so the column is centred on the block under the command.
+        let queued = strike::Strike::new(
+            x.floor() + 0.5,
+            z.floor() + 0.5,
+            radius,
+            y as i32 - CARVE_BELOW,
+            y as i32 + CARVE_ABOVE,
+        );
+
+        match queued {
+            Ok(s) => {
+                if let Ok(mut active) = self.active.lock() {
+                    active.push(s);
+                }
+                Flow::Cancel
+            }
+            Err(reason) => {
+                eprintln!("starflight: strike refused: {reason}");
+                Flow::Continue
+            }
+        }
+    }
+
+    /// Right-clicking with the rocket item calls a strike onto the aimed block.
+    fn right_click_item(&self, host: HostSide<'_>, event: &mut RightClickItemEvent<'_>) -> Flow {
         // A client's copy would act on a world it does not own.
         if event.click.side != LogicalSide::Server {
             return Flow::Continue;
@@ -147,5 +223,61 @@ impl Hooks for Starflight {
         for index in finished.into_iter().rev() {
             active.swap_remove(index);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_rocket_item_is_declared() {
+        let items = declarations();
+        assert_eq!(items.len(), 1, "exactly one item is declared");
+
+        let rocket = &items[0];
+        assert_eq!(rocket.id, "orbital_rocket", "namespaced by the mod id");
+        assert_eq!(
+            rocket.template, "minecraft:firework_rocket",
+            "the template must be a real vanilla item"
+        );
+        // The template places no block, so neither does the item.
+        assert_eq!(rocket.block, None);
+        // Nothing consumes it: one rocket can call strikes indefinitely.
+        assert_eq!(rocket.crafting_remainder, None);
+    }
+
+    #[test]
+    fn a_command_strike_carves_a_real_volume() {
+        // The same path `/starflight strike` takes, minus the game types: a
+        // strike is built, then drained the way the tick loop drains it.
+        let mut s = strike::Strike::new(0.5, 0.5, STRIKE_RADIUS, 60, 100).expect("valid");
+        let total = s.total();
+        assert!(total > 0, "a strike must produce positions");
+
+        let mut delivered = 0usize;
+        let mut ticks = 0u32;
+        while s.phase() != strike::Phase::Done && ticks < 100_000 {
+            delivered += s.tick().len();
+            ticks += 1;
+        }
+
+        assert_eq!(delivered as u64, total, "every position delivered once");
+        assert!(
+            ticks >= strike::DESCENT_TICKS,
+            "the descent precedes the carve"
+        );
+    }
+
+    #[test]
+    fn the_declared_id_matches_the_id_the_click_hook_matches_on() {
+        // If these drift apart, right-clicking would never start a strike and
+        // the item would appear to do nothing.
+        let rocket = &declarations()[0];
+        assert_eq!(
+            format!("starflight:{}", rocket.id),
+            STRIKE_ITEM,
+            "the registered id and the id the hook looks for must agree"
+        );
     }
 }

@@ -3,90 +3,123 @@
 Port of the Fabric mod in `mods/starflight` to **Horizon** (the Rust Minecraft
 client). Both are independent reimplementations of the mechanics described by
 *The Shooting Star [Demo]* (All Rights Reserved); no upstream code or assets are
-used in either.
+used in either. The item icon is drawn procedurally by `scripts/mkpng`.
 
-Last verified: 2026-11-16 against `horizon-rust/horizon@69ab572dbd1bf2f2924a424f791014e09d9d0b50`.
+Last verified: 2026-11-16 against
+`horizon-rust/horizon@69ab572dbd1bf2f2924a424f791014e09d9d0b50` and
+`horizon-mixins@e59da9094f0c2fdda6c627fe9eff22dec6a906f0`.
 
-## It builds
+## It builds a complete mod
 
 ```
 $ ./scripts/build-horizon.sh
-Building against the game checkout .../horizon-5a198cb72f4fbd36/69ab572
-Built .\target/horizon-mod\starflight.hmod
 built horizon/starflight/dist/starflight.hmod
-starflight 0.1.0 (native-mod, format native-1/69ab572.../e59da909..., for 26.3)
-  5515 bytes, SHA-256 f05c041a8..., unsigned
+starflight 0.1.0 (native-mod, format native-1/..., for 26.3)
+  8084 bytes, SHA-256 13b2e90bd..., unsigned
 ```
 
-`dist/starflight.hmod` is a real Horizon native mod, accepted by Horizon's own
-package checker (`cargo horizon-mod check --kind native-mod`). "unsigned" is
-expected: signing is only needed to submit to the registry.
+Accepted by Horizon's own checker (`cargo horizon-mod check --kind native-mod` →
+`{"ok":true}`). "unsigned" is expected: signing is only needed for the registry.
 
-## What it does
+Contents: 10 files — manifest, native source, assets (item model, texture, lang)
+and the recipe.
 
-* **`right_click_item`** — right-clicking while holding `starflight:orbital_rocket`
-  resolves the item id through `ServerHost::item_key`, compares the opaque
-  `ItemKey`, and queues a strike centred on the aimed block. Client side returns
-  early so a client's copy never acts on a world it does not own.
-* **`server_tick`** — advances each live strike one tick and hands the resulting
-  positions to `ServerHost::edit_blocks` as a single `BlockEdit` with one
-  `minecraft:air` palette entry. A refusal abandons the strike rather than
-  leaving the world half-carved.
+## What it contains
 
-Carve: radius 16, 24 blocks above the target, 16 below.
+| Piece | State |
+|---|---|
+| Item `starflight:orbital_rocket` | declared in code via the `items` hook |
+| Item model, 16×16 texture, English name | ✅ |
+| Recipe (iron + diamond + firework rocket) | ✅ |
+| `right_click_item` → queues a strike | ✅ |
+| `server_tick` → carves via `edit_blocks` | ✅ |
+| `/starflight strike [radius]` | ✅ (radius form is operator-only) |
+| Test suite | ✅ 9/9 |
+
+The template is `minecraft:firework_rocket`: stackable, places no block, which is
+what a strike call should be. Right-clicking queues a strike on the aimed block;
+`server_tick` hands the positions to `ServerHost::edit_blocks` as one `BlockEdit`
+with a single `minecraft:air` palette entry. A refused edit abandons the strike
+rather than leaving the world half-carved.
+
+Carve: radius 16, 24 blocks above the target, 16 below. A strike waits 30 ticks
+(`DESCENT_TICKS`) before the first carve, matching the Fabric build's fall time.
+
+`/starflight strike [radius]` exists so the mechanic is testable with one command
+and reachable if the item is lost.
 
 ## Verified
 
 | Check | Result |
 |---|---|
 | Compiles against the real generated SDK | ✅ |
-| `cargo clippy` | ✅ no warnings |
-| `cargo horizon-mod build` → `.hmod` | ✅ 5 515 bytes |
-| `cargo horizon-mod check --kind native-mod` | ✅ accepted |
-| Scheduling tests (`src/strike.rs`) | ✅ 6/6 |
+| `cargo clippy --all-targets` | ✅ no warnings |
+| `cargo horizon-mod build` → `.hmod` | ✅ 8 084 bytes, 10 files |
+| `cargo horizon-mod check --kind native-mod` | ✅ `ok: true` |
+| Tests | ✅ 9/9 |
+| Item id in the declaration matches the id the click hook matches | ✅ (guarded by a test) |
 | `./scripts/verify.sh` | ✅ `VERIFY: PASS` |
 
-## Not verified
+## NOT verified — it has never been run
 
-**It has not been run in Horizon.** Launching the game needs the Horizon client
-binary and a signed build; neither is reachable from here. The code is
-compile-checked and package-checked against the exact pinned revisions, which is
-the furthest automated verification goes. Runtime behaviour (does the block
-actually disappear, does the item exist in the registry) is unproven.
+**The mod has not been executed in Horizon.** Launching needs an
+`horizon-client` binary and, for native mods, `horizon-launcher native-build`:
 
-The item `starflight:orbital_rocket` is also **not yet registered** — this port
-uses the hook path only. Registering it needs a content artifact (`assets/`,
-`data/`) alongside the native code, which is the next step.
+```
+$ cargo horizon-mod run
+error: code mods run through the launcher's native build:
+       horizon-launcher native-build . --trust-native-code
+```
+
+Neither is installed, and neither is published:
+`https://github.com/horizon-rust/horizon/releases/download/launcher/SHA256SUMS`
+returns 404, as does every `sdk-<commit>` release. So:
+
+* **Not proven:** that the item appears in the inventory, that the texture
+  renders, that the recipe is craftable, that right-clicking starts a strike,
+  that the blocks actually disappear.
+* **Proven:** the code compiles against the exact pinned API, the package is
+  structurally valid and passes Horizon's checker, and the scheduling logic
+  delivers every position exactly once within the per-tick budget.
+
+Runtime behaviour is unproven and should not be described as working.
+
+### Other gaps
+
+* The rocket is **not consumed** on use. `ItemStack::shrink` returns a new stack,
+  and writing it back needs inventory paths this port does not have yet. The item
+  currently calls strikes indefinitely.
+* No descent visual. The Fabric build draws a beam from orbit; this port waits the
+  same 30 ticks but shows nothing. `LevelRef::global_level_event` is the hook.
+* No sound or particles on impact.
 
 ## How it was unblocked
 
-The earlier blocker was `cc-rs: failed to find tool "gcc.exe"`. Fixed by
-installing WinLibs MinGW-w64 via `winget`. With a C compiler present,
-`cargo-horizon-mod` installs and the SDK becomes readable:
+The original blocker was `cc-rs: failed to find tool "gcc.exe"`. Fixed with
+WinLibs MinGW-w64:
 
 ```sh
 winget install BrechtSanders.WinLibs.POSIX.UCRT
 cargo install --git https://github.com/horizon-rust/horizon cargo-horizon-mod
 ```
 
-The generated API then lives at
+Every signature was then read from the generated API at
 `crates/horizon-mod-vocab/src/hooks/*.rs` and
-`target/debug/build/horizon-mod-vocab/*/out/mod_api_generated.rs`. Every
-signature in `src/lib.rs` was read from there.
+`target/debug/build/horizon-mod-vocab/*/out/mod_api_generated*.rs`. See
+`starflight/API_NOTES.md` for the confirmed surface and the five things I had
+guessed wrong.
 
-## Why the build script stages a copy
+## Building
 
-`cargo horizon-mod build` refuses to pack a native mod outside a game checkout,
-and will not download an SDK — no signed `sdk-<commit>` release exists for the
-pinned build. `scripts/build-horizon.sh` copies the crate into the checkout,
-packs it, copies the `.hmod` back, and restores the checkout (verified clean
-afterwards).
+`scripts/build-horizon.sh` stages a copy of the crate inside the game checkout,
+packs it, copies the `.hmod` back, and restores the checkout. Necessary because
+`cargo horizon-mod build` refuses to pack a native mod outside a checkout and
+will not download an SDK — no signed `sdk-<commit>` release exists for the pinned
+build. The checkout is verified clean afterwards.
 
 ## Next steps
 
-1. Register `starflight:orbital_rocket` as a real item (content artifact: model,
-   texture, lang, recipe) so it can be held.
-2. Run it in a Horizon client and confirm the carve.
-3. Add the descent phase visually (`LevelRef::global_level_event`).
-4. When an official signed SDK ships, replace the staging build with
-   `cargo horizon-mod build` in place.
+1. Get an `horizon-client` + `horizon-launcher` and actually run it.
+2. Consume the rocket on use (needs inventory write paths).
+3. Descent visual via `LevelRef::global_level_event`.
+4. Impact sound and particles.
