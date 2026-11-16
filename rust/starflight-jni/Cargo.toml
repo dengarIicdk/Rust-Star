@@ -1,0 +1,15 @@
+[package]
+name = "starflight-jni"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "JNI bridge exposing starflight to a Minecraft Java adapter"
+
+[lib]
+name = "starflight_jni"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+starflight = { path = "../starflight" }
+jni = "0.21.1"

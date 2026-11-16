@@ -1,0 +1,21 @@
+# Third-party toolchains inside project (large, not redistributable)
+tools/
+artifacts/logs/*.log
+
+# Build output
+target/
+build/
+.gradle/
+run/
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+!libs/*.jar
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Java build output
+java/out/
+*.class
