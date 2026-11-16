@@ -1,4 +1,26 @@
-# Horizon port — status
+# Horizon port — published and installable
+
+**The mod is published and the launcher can install it:**
+
+```
+https://github.com/dengarIicdk/Rust-Star/tree/horizon-mod
+```
+
+```sh
+horizon-launcher mods add-github https://github.com/dengarIicdk/Rust-Star/tree/horizon-mod --trust-native-code
+horizon-launcher native-build
+```
+
+Or in the launcher's Mods page: **Add from GitHub** with that URL. A prebuilt
+`starflight.hmod` also sits in that branch. Tag `v0.1.0` resolves to the same
+commit for the release path.
+
+The branch `horizon-mod` **is** the mod project: its root holds
+`horizon-mod.toml`, `Cargo.toml`, `src/`, `assets/` and `data/`, which is the
+flat layout the launcher's source discovery requires. The working copy lives at
+`Z:/WIBECODING/MyProjects/Rust-Star-Horizon`.
+
+---
 
 Port of the Fabric mod in `mods/starflight` to **Horizon** (the Rust Minecraft
 client). Both are independent reimplementations of the mechanics described by
