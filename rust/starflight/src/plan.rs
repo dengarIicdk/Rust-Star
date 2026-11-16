@@ -212,13 +212,25 @@ mod tests {
 
     #[test]
     fn huge_source_is_rejected() {
-        struct Inf;
-        impl BlockSource for Inf {
+        // Feeds MAX_BLOCKS_PER_STRIKE + 1 positions and stops.
+        //
+        // Still the slowest test, because the guard only trips once the count is
+        // exceeded, so it necessarily generates the full limit first. That cost
+        // is inherent to testing the real boundary; it is not a runaway loop.
+        struct JustOver {
+            left: u64,
+        }
+        impl BlockSource for JustOver {
             fn next_block(&mut self) -> Option<BlockPos> {
+                if self.left == 0 {
+                    return None;
+                }
+                self.left -= 1;
                 Some(pos(0, 0, 0))
             }
         }
-        assert!(Plan::build(Inf).is_err());
+        let over = u64::from(MAX_BLOCKS_PER_STRIKE) + 1;
+        assert!(Plan::build(JustOver { left: over }).is_err());
     }
 
     #[test]

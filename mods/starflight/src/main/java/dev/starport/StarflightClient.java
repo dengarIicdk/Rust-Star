@@ -52,9 +52,10 @@ public final class StarflightClient implements ClientModInitializer {
             matrices.translate(0.0, 0.5, 0.0);
             // Face the camera, exactly as a name tag does.
             matrices.multiply(this.dispatcher.getRotation());
-            // Textures are 1 block per 16 px; this makes the rocket ~2 blocks
-            // tall, which is visible without dominating the screen.
-            float scale = 2.0f;
+            // Was 2.0, which read as a speck from the ground. The strike falls
+            // from ~180 blocks up, so the projectile has to be large to be seen
+            // at all on the way down.
+            float scale = 8.0f;
             matrices.scale(-scale, -scale, scale);
 
             VertexConsumer vc = vertexConsumers.getBuffer(RenderLayer.getEntityTranslucentEmissive(this.getTexture(entity)));

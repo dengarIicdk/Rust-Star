@@ -39,7 +39,7 @@ public final class Commands {
                 return 1;
             }))
             .then(CommandManager.literal("strike")
-                .then(CommandManager.argument("radius", DoubleArgumentType.doubleArg(1.0, 64.0))
+                .then(CommandManager.argument("radius", DoubleArgumentType.doubleArg(1.0, HARD_MAX_RADIUS))
                     .executes(ctx -> {
                         ServerCommandSource src = ctx.getSource();
                         ServerPlayerEntity player = src.getPlayerOrThrow();
@@ -150,12 +150,11 @@ public final class Commands {
                 var world = src.getServer().getOverworld();
                 var at = world.getSpawnPos();
                 world.getChunk(at.getX() >> 4, at.getZ() >> 4);
-                var start = new net.minecraft.util.math.Vec3d(at.getX() + 0.5, at.getY() + 40, at.getZ() + 0.5);
-                var rocket = RocketEntity.create(
+                var start = new net.minecraft.util.math.Vec3d(at.getX() + 0.5, at.getY(), at.getZ() + 0.5);
+                var rocket = RocketEntity.createFromOrbit(
                     world,
                     null,
                     start,
-                    new net.minecraft.util.math.Vec3d(0.0, -1.0, 0.0),
                     StrikeTuning.DEFAULT);
                 boolean spawned = world.spawnEntity(rocket);
                 double speed = rocket.getVelocity().length();
@@ -230,7 +229,7 @@ public final class Commands {
                 ServerCommandSource src = ctx.getSource();
                 StrikeTuning t = StarflightConfig.tuning();
                 boolean valid = t.isValid();
-                boolean sane = t.radius() >= 1.0 && t.radius() <= 64.0
+                boolean sane = t.radius() >= 1.0 && t.radius() <= HARD_MAX_RADIUS
                     && t.damage() >= 0.0 && t.speed() > 0.0 && t.lifetimeTicks() > 0
                     && StarflightConfig.maxActiveStrikes() >= 1
                     && StarflightConfig.maxActiveStrikes() <= StarflightConfig.ABSOLUTE_MAX_ACTIVE;
@@ -257,6 +256,14 @@ public final class Commands {
         // After forgetting, a fresh acquire must succeed even inside the window.
         return RateLimiter.tryAcquire(id, 1_000_000L);
     }
+
+    /**
+     * Mirrors {@code starflight::limits::HARD_MAX_RADIUS}. Kept in one place so
+     * the command bound and the config sanity check cannot drift from the core
+     * again (they did: both still said 64 after the core moved to 128, and the
+     * in-server CONFIG check is what caught it).
+     */
+    public static final double HARD_MAX_RADIUS = 128.0;
 
     /** One-shot state shared between the selftest and verify subcommands. */
     private static final class Probe {

@@ -11,5 +11,6 @@
   "starflight.error.invalid_direction": "Launch direction is invalid",
   "starflight.error.rate_limited": "Too many launches — %s left this minute",
   "starflight.subtitle.launch": "Rocket launches",
-  "starflight.subtitle.impact": "Rocket impact"
+  "starflight.subtitle.impact": "Rocket impact",
+  "starflight.error.no_target": "Aim at the ground within 200 blocks"
 }

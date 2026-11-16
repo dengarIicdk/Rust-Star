@@ -16,7 +16,7 @@ package dev.starport;
  */
 public final class BlockApplier {
     /** Mirrors {@code starflight::limits::MAX_BLOCKS_PER_TICK}. */
-    public static final int MAX_PER_TICK = 16_384;
+    public static final int MAX_PER_TICK = 65_536;
 
     private BlockApplier() {}
 

@@ -21,6 +21,8 @@ import net.minecraft.world.World;
 public final class RocketItem extends Item {
     /** Per-player cooldown after a successful launch. */
     public static final int COOLDOWN_TICKS = 20 * 6;
+    /** How far the player may designate a target. */
+    public static final double MAX_TARGET_DISTANCE = 200.0;
 
     public RocketItem(Settings settings) {
         super(settings);
@@ -59,11 +61,25 @@ public final class RocketItem extends Item {
             return TypedActionResult.fail(stack);
         }
 
-        // Launch from slightly in front of the player so the rocket does not
-        // spawn inside their own hitbox.
-        Vec3d start = player.getPos().add(0, player.getStandingEyeHeight() - 0.15, 0).add(dir.multiply(1.2));
-        RocketEntity rocket = RocketEntity.create(
-            (net.minecraft.server.world.ServerWorld) world, player, start, dir, tuning);
+        // Find where the player is aiming: a block within 200 blocks, or a
+        // point along the look vector if the beam hits nothing.
+        net.minecraft.server.world.ServerWorld serverWorld =
+            (net.minecraft.server.world.ServerWorld) world;
+        Vec3d eye = player.getEyePos();
+        Vec3d target;
+        net.minecraft.util.hit.BlockHitResult hit = serverWorld.raycast(new net.minecraft.world.RaycastContext(
+            eye, eye.add(dir.multiply(MAX_TARGET_DISTANCE)),
+            net.minecraft.world.RaycastContext.ShapeType.COLLIDER,
+            net.minecraft.world.RaycastContext.FluidHandling.NONE, player));
+        if (hit.getType() == net.minecraft.util.hit.HitResult.Type.MISS) {
+            player.sendMessage(Text.translatable("starflight.error.no_target"), true);
+            return TypedActionResult.fail(stack);
+        }
+        target = hit.getPos();
+
+        // The strike arrives from orbit onto the marked column; it does not
+        // leave the player's hand.
+        RocketEntity rocket = RocketEntity.createFromOrbit(serverWorld, player, target, tuning);
         if (rocket == null) {
             player.sendMessage(Text.translatable("starflight.error.invalid_direction"), true);
             return TypedActionResult.fail(stack);

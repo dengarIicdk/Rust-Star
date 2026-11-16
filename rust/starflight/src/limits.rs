@@ -17,13 +17,27 @@ pub const MIN_RADIUS: f64 = 1.0;
 /// Absolute ceiling on beam radius accepted by the core, regardless of config.
 /// Deliberately far below the 1500 slider so a malicious or misconfigured
 /// client cannot OOM the server. Raising this is a code change, not a packet.
-pub const HARD_MAX_RADIUS: f64 = 64.0;
+/// Raised from 64 to 128 to match the scale of an orbital strike: at radius
+/// 128 a full-height beam is ~19.8 M blocks, which takes about a minute of
+/// server time at [`MAX_BLOCKS_PER_TICK`] and roughly 240 MB in the plan. That
+/// is the documented ceiling; going higher needs a streaming plan, not a
+/// bigger constant (see docs/KNOWN_ISSUES.md).
+pub const HARD_MAX_RADIUS: f64 = 128.0;
 
 /// Maximum blocks a single tick may mutate through the planner.
-pub const MAX_BLOCKS_PER_TICK: u32 = 16_384;
+///
+/// Raised from 16 384 to 65 536 so a radius-128 strike (~19.8 M blocks) lands in
+/// roughly 30 s of server time instead of ~2 min. 65 536 block writes in one
+/// tick is a large but survivable burst on a modern machine; Minecraft's own
+/// `/fill` is capped at 32 768 per command, so this stays in the same order.
+pub const MAX_BLOCKS_PER_TICK: u32 = 65_536;
 
 /// Maximum total blocks a single queued strike may request.
-pub const MAX_BLOCKS_PER_STRIKE: u32 = 2_000_000;
+/// Raised alongside `HARD_MAX_RADIUS`: a radius-128 beam through the full world
+/// height is ~19.8 M positions, so the old 2 M cap rejected the very strike the
+/// radius increase was meant to allow. 24 M leaves headroom for a tall world
+/// without permitting an unbounded request.
+pub const MAX_BLOCKS_PER_STRIKE: u32 = 24_000_000;
 
 /// Maximum projectile speed in blocks per tick.
 pub const MAX_PROJECTILE_SPEED: f64 = 10.0;

@@ -39,11 +39,15 @@ for `linux-x64` / `mac-arm64` subdirectories.
 
 ## 5. Hard radius cap is below the upstream slider
 
-**Symptom.** `HARD_MAX_RADIUS = 64` while the upstream UI advertised up to 1500.
+**Symptom.** `HARD_MAX_RADIUS = 128` while the upstream UI advertised up to 1500.
 **Why.** Deliberate (D5): a 1500-radius cylinder is ~1e9 blocks, an instant
-server-killer. Requests above 64 are rejected, not clamped.
-**Remedy.** Raise the constant deliberately; `MAX_BLOCKS_PER_STRIKE = 2e6` also
-caps the worst case (~500 MB for a single plan).
+server-killer. Requests above the cap are rejected, not clamped.
+**Measured cost at the cap.** A radius-128 beam through a full-height world is
+~19.8 M positions, which is ~240 MB in a single plan and ~30 s of server time at
+`MAX_BLOCKS_PER_TICK = 65 536`. Radius 200 would be 48.3 M / ~580 MB / ~2.5 min
+and needs a streaming plan rather than a bigger constant.
+**Remedy.** Raising further requires changing the plan to stream layer by layer
+instead of materialising every position.
 
 ## 6. Benchmark numbers are machine-specific
 

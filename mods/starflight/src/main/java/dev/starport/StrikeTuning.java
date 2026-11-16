@@ -8,8 +8,14 @@ package dev.starport;
  */
 public record StrikeTuning(double radius, double damage, double speed, int lifetimeTicks) {
 
+    /**
+     * Defaults chosen for a visible orbital strike rather than a small blast:
+     * a radius-128 column is ~19.8 M blocks through a full-height world, which
+     * takes about 30 s at {@code MAX_BLOCKS_PER_TICK}. Lower the radius in
+     * {@code config/starflight.properties} on a slow machine.
+     */
     public static final StrikeTuning DEFAULT =
-        new StrikeTuning(8.0, 60.0, 2.5, 400);
+        new StrikeTuning(128.0, 60.0, 2.5, 400);
 
     /** Returns the clamp/validate verdict from the native core. */
     public int validate() {
