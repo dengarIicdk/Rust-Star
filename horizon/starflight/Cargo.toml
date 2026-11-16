@@ -1,0 +1,15 @@
+# Standalone crate used to compile and test the Horizon runtime outside the
+# game. Horizon's own build embeds `src/runtime.rs` into the patched client and
+# does not use this manifest; it exists so the logic is testable here, in CI, and
+# by any reviewer without building the whole game.
+[package]
+name = "starflight-horizon"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+starflight = { path = "../../rust/starflight" }
+
+[lib]
+path = "src/lib.rs"

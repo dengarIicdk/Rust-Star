@@ -51,6 +51,12 @@ echo "== 2/6 clippy (deny warnings) =="
 echo "== 3/6 cargo test =="
 (cd rust && cargo test --workspace 2>&1 | tee "$ROOT/artifacts/logs/cargo-test-$STAMP.log" | grep -E 'test result|FAILED')
 
+echo "== 3b/6 horizon port runtime tests =="
+(cd horizon/starflight && cargo test 2>&1 | tail -4)
+
+echo "== 3c/6 horizon port lint =="
+(cd horizon/starflight && cargo clippy --all-targets -- -D warnings 2>&1 | tail -2)
+
 echo "== 4/6 release build =="
 (cd rust && cargo build --release 2>&1 | tail -2)
 

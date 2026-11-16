@@ -25,3 +25,6 @@ mods/*/run/
 mods/*/build/
 mods/*/.gradle/
 artifacts/preview/
+
+# Horizon port standalone build
+horizon/*/target/
